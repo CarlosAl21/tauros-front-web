@@ -1,70 +1,102 @@
-# Getting Started with Create React App
+# Tauros Front Web
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Frontend React para administracion del sistema Tauros conectado al backend NestJS.
 
-## Available Scripts
+## Caracteristicas implementadas
 
-In the project directory, you can run:
+- Login conectado a `POST /auth/login`.
+- Acceso restringido solo a usuarios con rol `admin` o `coach`.
+- JWT persistido en `localStorage` para consumo de rutas protegidas.
+- Layout basado en el diseno del TXT: SideNav, TopBar, dashboard, tablas y formularios.
+- Pantallas conectadas: panel principal, usuarios, composicion corporal, ejercicios, maquinas, categorias, tipos, planes de entrenamiento, rutina dia, rutina ejercicio, eventos, horarios y sugerencias.
+- Formularios listos para crear registros en endpoints principales.
+- Eliminacion de registros por seleccion para modulos habilitados.
 
-### `npm start`
+## Estructura del frontend
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+```text
+src/
+	App.js
+	features/
+		tauros/
+			components/
+				AuthScreen.js
+				DashboardScreen.js
+				ModuleScreen.js
+				Sidebar.js
+				Topbar.js
+			layouts/
+				MainLayout.js
+			config/
+				modules.js
+			hooks/
+				useTaurosApp.js
+			pages/
+				AuthPage.js
+				DashboardPage.js
+				ModulePage.js
+				NotFoundPage.js
+			services/
+				api.js
+			utils/
+				form.js
+```
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+- `App.js`: composicion general de pantallas.
+- `App.js`: router principal con rutas reales por pantalla.
+- `layouts/MainLayout.js`: estructura comun de sidebar y topbar.
+- `hooks/useTaurosApp.js`: toda la logica de estado, carga y acciones CRUD.
+- `config/modules.js`: definicion de modulos/pantallas.
+- `pages/*`: pantallas reales conectadas a rutas URL.
+- `components/*`: vistas separadas por tipo de pantalla.
+- `services/api.js`: cliente HTTP al backend.
+- `utils/form.js`: helpers de formularios y render de valores.
 
-### `npm test`
+## Variables de entorno
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Crear archivo `.env` usando `.env.example`:
 
-### `npm run build`
+```bash
+REACT_APP_API_URL=http://localhost:3000
+```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## Ejecucion
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+```bash
+npm install
+npm start
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+Frontend: `http://localhost:3000`
 
-### `npm run eject`
+Rutas principales:
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+```text
+/login
+/dashboard
+/usuarios
+/composicion-corporal
+/ejercicios
+/maquinas
+/categorias
+/tipos
+/planes
+/rutina-dia
+/rutina-ejercicio
+/eventos
+/horarios
+/sugerencias
+```
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+## Requisitos del backend
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+- El backend debe estar corriendo.
+- CORS ya se encuentra habilitado en Nest.
+- Para endpoints de administracion (create/update/delete en varios modulos), debes iniciar sesion con rol `admin` o `coach`.
+- Un usuario registrado desde el front se crea por defecto con rol `user`.
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+## Build
 
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+```bash
+npm run build
+```
