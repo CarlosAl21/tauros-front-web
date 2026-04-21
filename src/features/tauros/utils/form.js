@@ -188,6 +188,18 @@ export function normalizePayload(form, config) {
     delete payload.usuarioBusqueda;
   }
 
+  if (payload.linkVideoFile !== undefined) {
+    delete payload.linkVideoFile;
+  }
+
+  if (payload.linkAMFile !== undefined) {
+    delete payload.linkAMFile;
+  }
+
+  if (payload.musculosSeleccionados !== undefined) {
+    delete payload.musculosSeleccionados;
+  }
+
   if (config.key === 'ejercicio' && !payload.maquinaId) {
     payload.maquinaId = null;
   }

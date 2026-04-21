@@ -130,6 +130,15 @@ a {
   gap: 0.8rem;
 }
 
+.module-links-strip {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0.45rem 0 0.9rem;
+}
+
 .topbar-right input,
 .form-grid input,
 .form-grid select {
@@ -249,12 +258,12 @@ a {
 .module-grid {
   display: grid;
   gap: 1rem;
-  grid-template-columns: minmax(0, 1.6fr) minmax(340px, 1fr);
+  grid-template-columns: minmax(0, 1.2fr) minmax(700px, 1fr);
   align-items: start;
 }
 
 .module-grid--compact {
-  grid-template-columns: minmax(0, 1.4fr) minmax(360px, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(720px, 1fr);
 }
 
 .table-card {
@@ -292,7 +301,7 @@ a {
 
 .action-strip {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   flex-wrap: wrap;
   gap: 0.6rem;
   padding: 0.6rem 1rem;
@@ -300,20 +309,8 @@ a {
   background: rgba(255, 255, 255, 0.01);
 }
 
-.relations-strip {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  padding: 0.6rem 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.relations-strip span {
-  color: var(--muted);
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06rem;
+.action-strip .btn-action {
+  align-self: flex-end;
 }
 
 .inline-filter {
@@ -374,6 +371,7 @@ th {
 
 .form-card {
   padding: 1rem;
+  min-height: 700px;
 }
 
 .form-grid {
@@ -390,8 +388,79 @@ th {
   color: var(--muted);
 }
 
+.form-grid label span {
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 0.78rem;
+}
+
+.muscle-picker {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.muscle-picker svg {
+  width: 100%;
+  max-width: 680px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 0;
+  background: #e9e9eb;
+}
+
+.muscle-part {
+  fill: rgba(220, 30, 30, 0.01);
+  stroke: rgba(160, 24, 24, 0.1);
+  stroke-width: 1;
+  cursor: pointer;
+  transition: fill 150ms ease, stroke 150ms ease;
+}
+
+.muscle-overlay {
+  pointer-events: all;
+}
+
+.muscle-part:hover {
+  fill: rgba(220, 40, 40, 0.3);
+  stroke: rgba(125, 0, 0, 0.45);
+}
+
+.muscle-part.selected {
+  fill: rgba(230, 32, 32, 0.62);
+  stroke: rgba(125, 0, 0, 0.92);
+}
+
+.muscle-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.muscle-chip {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 0.28rem 0.58rem;
+  font-size: 0.73rem;
+  cursor: pointer;
+}
+
+.muscle-chip.active {
+  border-color: rgba(255, 180, 168, 0.7);
+  background: rgba(192, 0, 0, 0.35);
+}
+
+.muscle-preview {
+  margin-top: 0.4rem;
+  width: 100%;
+  max-width: 280px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
 .form-grid.compact {
-  max-height: 420px;
+  max-height: 700px;
   overflow-y: auto;
   padding-right: 0.2rem;
 }

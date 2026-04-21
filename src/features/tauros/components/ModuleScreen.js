@@ -1,6 +1,160 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getInputType, isOptionalField, resolveValue } from '../utils/form';
+import MuscleSelector, { MUSCLE_GROUPS } from './MuscleSelector';
+
+function isFileLike(value) {
+  return typeof File !== 'undefined' && value instanceof File;
+}
+
+function isBlobLike(value) {
+  return typeof Blob !== 'undefined' && value instanceof Blob;
+}
+
+async function compressVideoFile(file) {
+  if (!isFileLike(file) || !file.type.startsWith('video/') || typeof MediaRecorder === 'undefined') {
+    return file;
+  }
+
+  const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+    ? 'video/webm;codecs=vp9'
+    : (MediaRecorder.isTypeSupported('video/webm;codecs=vp8') ? 'video/webm;codecs=vp8' : 'video/webm');
+
+  if (!mimeType) {
+    return file;
+  }
+
+  return new Promise((resolve) => {
+    const sourceUrl = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    video.src = sourceUrl;
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'metadata';
+
+    video.onloadedmetadata = async () => {
+      try {
+        const maxWidth = 960;
+        const scale = video.videoWidth > maxWidth ? (maxWidth / video.videoWidth) : 1;
+        const width = Math.max(320, Math.floor(video.videoWidth * scale));
+        const height = Math.max(240, Math.floor(video.videoHeight * scale));
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext('2d');
+
+        if (!context) {
+          URL.revokeObjectURL(sourceUrl);
+          resolve(file);
+          return;
+        }
+
+        const draw = () => {
+          if (video.paused || video.ended) {
+            return;
+          }
+          context.drawImage(video, 0, 0, width, height);
+          requestAnimationFrame(draw);
+        };
+
+        const canvasStream = canvas.captureStream(24);
+        let audioTrack = null;
+        if (typeof video.captureStream === 'function') {
+          const mediaStream = video.captureStream();
+          audioTrack = mediaStream.getAudioTracks()[0] || null;
+        }
+
+        const composedStream = new MediaStream([
+          ...canvasStream.getVideoTracks(),
+          ...(audioTrack ? [audioTrack] : []),
+        ]);
+
+        const chunks = [];
+        const recorder = new MediaRecorder(composedStream, {
+          mimeType,
+          videoBitsPerSecond: 1_000_000,
+          audioBitsPerSecond: audioTrack ? 96_000 : undefined,
+        });
+
+        recorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            chunks.push(event.data);
+          }
+        };
+
+        recorder.onstop = () => {
+          const blob = new Blob(chunks, { type: mimeType });
+          URL.revokeObjectURL(sourceUrl);
+
+          if (!blob.size || blob.size >= file.size) {
+            resolve(file);
+            return;
+          }
+
+          const extension = mimeType.includes('webm') ? 'webm' : 'mp4';
+          resolve(new File([blob], `${file.name.split('.').slice(0, -1).join('.') || 'video'}-optimizado.${extension}`, { type: blob.type }));
+        };
+
+        video.onended = () => {
+          if (recorder.state !== 'inactive') {
+            recorder.stop();
+          }
+        };
+
+        recorder.start(250);
+        video.currentTime = 0;
+        await video.play();
+        draw();
+      } catch (_err) {
+        URL.revokeObjectURL(sourceUrl);
+        resolve(file);
+      }
+    };
+
+    video.onerror = () => {
+      URL.revokeObjectURL(sourceUrl);
+      resolve(file);
+    };
+  });
+}
+
+async function exportMuscleSvgToFile(svgElement) {
+  if (!svgElement) {
+    return null;
+  }
+
+  const serializer = new XMLSerializer();
+  const svgMarkup = serializer.serializeToString(svgElement);
+  const encoded = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgMarkup)}`;
+  const image = new Image();
+
+  await new Promise((resolve, reject) => {
+    image.onload = resolve;
+    image.onerror = reject;
+    image.src = encoded;
+  });
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 720;
+  canvas.height = 480;
+  const context = canvas.getContext('2d');
+
+  if (!context) {
+    return null;
+  }
+
+  context.fillStyle = '#141414';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.72));
+  if (!blob) {
+    return null;
+  }
+
+  return new File([blob], `activacion-muscular-${Date.now()}.jpg`, { type: 'image/jpeg' });
+}
 
 function formatLabel(field) {
   const labels = {
@@ -19,7 +173,7 @@ function formatLabel(field) {
     contenido: 'Contenido',
     entidadId: 'ID de entidad',
     descripcion: 'Descripcion',
-    linkVideo: 'Link de video',
+    linkVideo: 'Video',
     linkAM: 'Link AM',
     linkFoto: 'Link de foto',
     diasSemanales: 'Dias semanales',
@@ -128,11 +282,16 @@ function ModuleScreen({
   const isUserModule = activeModule.key === 'usuario';
   const isCompositionModule = activeModule.key === 'composicion-corporal';
   const isExerciseModule = activeModule.key === 'ejercicio';
+  const isCategoryOrTypeModule = activeModule.key === 'categoria' || activeModule.key === 'tipo';
   const navigate = useNavigate();
+  const muscleSvgRef = useRef(null);
   const visibleFields = (activeModule.fields || []).filter((field) => !shouldHideField(field, activeModule.idField));
   const [usuarioSearch, setUsuarioSearch] = useState('');
   const [categoriaFilter, setCategoriaFilter] = useState('');
   const [tipoFilter, setTipoFilter] = useState('');
+  const [selectedMuscles, setSelectedMuscles] = useState([]);
+  const [videoProcessing, setVideoProcessing] = useState(false);
+  const [musclePreviewUrl, setMusclePreviewUrl] = useState('');
   const formFields = (activeModule.formFields || []).filter((field) => {
     if (isUserModule && field === 'password' && formMode === 'edit' && user?.rol !== 'admin') {
       return false;
@@ -249,6 +408,70 @@ function ModuleScreen({
     }
   }, [isExerciseModule]);
 
+  useEffect(() => {
+    if (!isExerciseModule) {
+      return;
+    }
+
+    if (!selectedMuscles.length) {
+      setMusclePreviewUrl((current) => {
+        if (current) {
+          URL.revokeObjectURL(current);
+        }
+        return '';
+      });
+      setCreateForm((current) => ({
+        ...current,
+        linkAMFile: undefined,
+      }));
+      return;
+    }
+
+    let ignore = false;
+    let generatedPreview = '';
+
+    const createMuscleImage = async () => {
+      const file = await exportMuscleSvgToFile(muscleSvgRef.current);
+      if (!file || ignore) {
+        return;
+      }
+
+      generatedPreview = URL.createObjectURL(file);
+      setMusclePreviewUrl((current) => {
+        if (current) {
+          URL.revokeObjectURL(current);
+        }
+        return generatedPreview;
+      });
+      setCreateForm((current) => ({
+        ...current,
+        linkAMFile: file,
+        linkAM: '',
+      }));
+    };
+
+    createMuscleImage();
+
+    return () => {
+      ignore = true;
+      if (generatedPreview) {
+        URL.revokeObjectURL(generatedPreview);
+      }
+    };
+  }, [isExerciseModule, selectedMuscles, setCreateForm]);
+
+  useEffect(() => {
+    if (!isExerciseModule) {
+      setSelectedMuscles([]);
+      setMusclePreviewUrl((current) => {
+        if (current) {
+          URL.revokeObjectURL(current);
+        }
+        return '';
+      });
+    }
+  }, [isExerciseModule]);
+
   return (
     <section className={`module-grid ${isUserModule ? 'module-grid--compact' : ''}`}>
       <article className={`table-card ${isUserModule ? 'table-card--compact' : ''}`}>
@@ -258,6 +481,11 @@ function ModuleScreen({
         </div>
 
         <div className="action-strip">
+          {isCategoryOrTypeModule && (
+            <button type="button" className="btn-action" onClick={() => navigate('/ejercicios')}>
+              ← Volver a ejercicios
+            </button>
+          )}
           <button type="button" className="btn-action" onClick={reloadModule}>Recargar</button>
           {isExerciseModule && (
             <>
@@ -286,7 +514,14 @@ function ModuleScreen({
             <button
               type="button"
               className="btn-action"
-              onClick={formMode === 'create' ? closeForm : openCreateForm}
+              onClick={() => {
+                if (formMode === 'create') {
+                  closeForm();
+                  return;
+                }
+
+                openCreateForm();
+              }}
             >
               {formMode === 'create' ? 'Cerrar registro' : (isUserModule ? 'Crear usuario' : 'Crear')}
             </button>
@@ -329,18 +564,6 @@ function ModuleScreen({
           )}
           {activeModule.isStub && <span className="stub-badge">Backend en construccion</span>}
         </div>
-
-        {isExerciseModule && (
-          <div className="relations-strip">
-            <span>Catalogos relacionados:</span>
-            <button type="button" className="btn-action" onClick={() => navigate('/categorias')}>
-              Gestionar categorias
-            </button>
-            <button type="button" className="btn-action" onClick={() => navigate('/tipos')}>
-              Gestionar tipos
-            </button>
-          </div>
-        )}
 
         <div className="table-scroll">
           <table>
@@ -489,6 +712,81 @@ function ModuleScreen({
             {formFields.map((field) => {
               if (activeModule.key === 'usuario' && field === 'rol' && user?.rol !== 'admin') {
                 return null;
+              }
+
+              if (isExerciseModule && field === 'linkVideo') {
+                const videoLabel = createForm.linkVideoFile?.name || createForm.linkVideo || 'Sin archivo';
+                return (
+                  <label key={field}>
+                    Link de video
+                    <input
+                      type="file"
+                      accept="video/*"
+                      onChange={async (event) => {
+                        const selected = event.target.files?.[0];
+                        if (!selected) {
+                          return;
+                        }
+
+                        setVideoProcessing(true);
+                        const optimizedVideo = await compressVideoFile(selected);
+                        setCreateForm((current) => ({
+                          ...current,
+                          linkVideoFile: optimizedVideo,
+                          linkVideo: '',
+                        }));
+                        setVideoProcessing(false);
+                      }}
+                    />
+                    <span>{videoProcessing ? 'Comprimiendo video...' : `Archivo: ${videoLabel}`}</span>
+                  </label>
+                );
+              }
+
+              if (isExerciseModule && field === 'linkAM') {
+                return (
+                  <label key={field}>
+                    Activacion muscular (AM)
+                    <div className="muscle-picker">
+                      <MuscleSelector
+                        ref={muscleSvgRef}
+                        selectedMuscles={selectedMuscles}
+                        onToggleMuscle={(muscleId) => {
+                          setSelectedMuscles((current) => (
+                            current.includes(muscleId)
+                              ? current.filter((value) => value !== muscleId)
+                              : [...current, muscleId]
+                          ));
+                        }}
+                      />
+
+                      <div className="muscle-tags">
+                        {MUSCLE_GROUPS.map((muscle) => {
+                          const active = selectedMuscles.includes(muscle.id);
+                          return (
+                            <button
+                              key={`tag-${muscle.id}`}
+                              type="button"
+                              className={`muscle-chip ${active ? 'active' : ''}`}
+                              onClick={() => {
+                                setSelectedMuscles((current) => (
+                                  current.includes(muscle.id)
+                                    ? current.filter((value) => value !== muscle.id)
+                                    : [...current, muscle.id]
+                                ));
+                              }}
+                            >
+                              {muscle.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    {musclePreviewUrl && (
+                      <img src={musclePreviewUrl} alt="Vista previa AM" className="muscle-preview" />
+                    )}
+                  </label>
+                );
               }
 
               const options = getFieldOptions(activeModule, field, user, getOptionsForField);

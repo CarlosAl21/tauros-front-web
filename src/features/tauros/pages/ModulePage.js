@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout';
 import ModuleScreen from '../components/ModuleScreen';
 
@@ -30,6 +31,8 @@ function ModulePage({
   success,
   moduleMessage,
 }) {
+  const navigate = useNavigate();
+
   useEffect(() => {
     setActiveModuleKey(activeModule.key);
   }, [activeModule.key, setActiveModuleKey]);
@@ -48,6 +51,16 @@ function ModulePage({
       {error && <p className="status error">{error}</p>}
       {success && <p className="status success">{success}</p>}
       {moduleMessage && <p className="status">Respuesta backend: {moduleMessage}</p>}
+      {activeModule.key === 'ejercicio' && (
+        <div className="module-links-strip">
+          <button type="button" className="btn-action" onClick={() => navigate('/categorias')}>
+            Gestionar categorias
+          </button>
+          <button type="button" className="btn-action" onClick={() => navigate('/tipos')}>
+            Gestionar tipos
+          </button>
+        </div>
+      )}
       <ModuleScreen
         activeModule={activeModule}
         user={user}

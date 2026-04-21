@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { MODULE_MAP } from '../config/modules';
 import { apiRequest } from '../services/api';
 import { buildFormFromRecord, buildInitialForm, normalizePayload } from '../utils/form';
@@ -75,39 +75,39 @@ export function useTaurosApp() {
     }
   }, [token, user]);
 
-  useEffect(() => {
+  const loadCatalogs = useCallback(async () => {
     if (!token) {
       return;
     }
 
-    const loadCatalogs = async () => {
-      try {
-        const [usuarios, categorias, tipos, maquinas, planes, rutinaDias, ejercicios] = await Promise.all([
-          apiRequest('/usuario', token),
-          apiRequest('/categoria', token),
-          apiRequest('/tipo', token),
-          apiRequest('/maquina', token),
-          apiRequest('/plan-entrenamiento', token),
-          apiRequest('/rutina-dia', token),
-          apiRequest('/ejercicio', token),
-        ]);
+    try {
+      const [usuarios, categorias, tipos, maquinas, planes, rutinaDias, ejercicios] = await Promise.all([
+        apiRequest('/usuario', token),
+        apiRequest('/categoria', token),
+        apiRequest('/tipo', token),
+        apiRequest('/maquina', token),
+        apiRequest('/plan-entrenamiento', token),
+        apiRequest('/rutina-dia', token),
+        apiRequest('/ejercicio', token),
+      ]);
 
-        setCatalogs({
-          usuarios: Array.isArray(usuarios) ? usuarios : [],
-          categorias: Array.isArray(categorias) ? categorias : [],
-          tipos: Array.isArray(tipos) ? tipos : [],
-          maquinas: Array.isArray(maquinas) ? maquinas : [],
-          planes: Array.isArray(planes) ? planes : [],
-          rutinaDias: Array.isArray(rutinaDias) ? rutinaDias : [],
-          ejercicios: Array.isArray(ejercicios) ? ejercicios : [],
-        });
-      } catch (_err) {
-        // Si un catalogo falla por permisos, la app sigue funcionando.
-      }
-    };
-
-    loadCatalogs();
+      setCatalogs({
+        usuarios: Array.isArray(usuarios) ? usuarios : [],
+        categorias: Array.isArray(categorias) ? categorias : [],
+        tipos: Array.isArray(tipos) ? tipos : [],
+        maquinas: Array.isArray(maquinas) ? maquinas : [],
+        planes: Array.isArray(planes) ? planes : [],
+        rutinaDias: Array.isArray(rutinaDias) ? rutinaDias : [],
+        ejercicios: Array.isArray(ejercicios) ? ejercicios : [],
+      });
+    } catch (_err) {
+      // Si un catalogo falla por permisos, la app sigue funcionando.
+    }
   }, [token]);
+
+  useEffect(() => {
+    loadCatalogs();
+  }, [activeModuleKey, loadCatalogs]);
 
   useEffect(() => {
     if (!token) {
@@ -257,6 +257,8 @@ export function useTaurosApp() {
     setSuccess('');
 
     try {
+      const linkVideoFile = createForm.linkVideoFile;
+      const linkAMFile = createForm.linkAMFile;
       const payload = normalizePayload(createForm, activeModule);
       if (activeModule.key === 'usuario') {
         if (formMode === 'edit' && user?.rol !== 'admin') {
@@ -266,15 +268,42 @@ export function useTaurosApp() {
         }
       }
 
+      const shouldUseMultipart = activeModule.key === 'ejercicio'
+        && ((typeof File !== 'undefined' && linkVideoFile instanceof File)
+          || (typeof Blob !== 'undefined' && linkAMFile instanceof Blob));
+
+      const requestBody = shouldUseMultipart
+        ? (() => {
+          const formData = new FormData();
+          Object.entries(payload).forEach(([key, value]) => {
+            if (value === undefined || value === null || value === '') {
+              return;
+            }
+            formData.append(key, String(value));
+          });
+
+          if (typeof File !== 'undefined' && linkVideoFile instanceof File) {
+            formData.append('linkVideo', linkVideoFile);
+          }
+
+          if (typeof Blob !== 'undefined' && linkAMFile instanceof Blob) {
+            const amFile = linkAMFile instanceof File ? linkAMFile : new File([linkAMFile], `am-${Date.now()}.jpg`, { type: 'image/jpeg' });
+            formData.append('linkAM', amFile);
+          }
+
+          return formData;
+        })()
+        : JSON.stringify(payload);
+
       if (formMode === 'edit' && selectedRecord?.[activeModule.idField]) {
         await apiRequest(`${activeModule.endpoint}/${selectedRecord[activeModule.idField]}`, token, {
           method: 'PATCH',
-          body: JSON.stringify(payload),
+          body: requestBody,
         });
       } else {
         await apiRequest(activeModule.endpoint, token, {
           method: 'POST',
-          body: JSON.stringify(payload),
+          body: requestBody,
         });
       }
 
@@ -283,6 +312,7 @@ export function useTaurosApp() {
       setFormMode('closed');
       setSelectedId('');
       await reloadModule();
+      await loadCatalogs();
     } catch (err) {
       setError(err.message || (formMode === 'edit' ? 'No se pudo actualizar el registro' : 'No se pudo crear el registro'));
     }
@@ -304,6 +334,7 @@ export function useTaurosApp() {
       setSuccess('Registro eliminado correctamente');
       setSelectedId('');
       await reloadModule();
+      await loadCatalogs();
     } catch (err) {
       setError(err.message || 'No se pudo eliminar el registro');
     }
