@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout';
 import ModuleScreen from '../components/ModuleScreen';
+import PlanBuilderScreen from '../components/PlanBuilderScreen';
 
 function ModulePage({
   modules,
@@ -9,8 +10,10 @@ function ModulePage({
   setActiveModuleKey,
   searchTerm,
   setSearchTerm,
+  token,
   user,
   usuariosCatalog,
+  catalogs,
   onLogout,
   filteredRecords,
   selectedId,
@@ -30,6 +33,7 @@ function ModulePage({
   error,
   success,
   moduleMessage,
+  refreshCatalogs,
 }) {
   const navigate = useNavigate();
 
@@ -61,26 +65,42 @@ function ModulePage({
           </button>
         </div>
       )}
-      <ModuleScreen
-        activeModule={activeModule}
-        user={user}
-        usuariosCatalog={usuariosCatalog}
-        filteredRecords={filteredRecords}
-        selectedId={selectedId}
-        setSelectedId={setSelectedId}
-        loading={loading}
-        selectedRecord={selectedRecord}
-        reloadModule={reloadModule}
-        handleDelete={handleDelete}
-        createForm={createForm}
-        formMode={formMode}
-        setCreateForm={setCreateForm}
-        handleCreate={handleCreate}
-        openCreateForm={openCreateForm}
-        openEditForm={openEditForm}
-        closeForm={closeForm}
-        getOptionsForField={getOptionsForField}
-      />
+      {activeModule.key === 'plan-entrenamiento' ? (
+        <PlanBuilderScreen
+          token={token}
+          plans={filteredRecords}
+          rutinaDias={catalogs?.rutinaDias || []}
+          rutinaEjercicios={catalogs?.rutinaEjercicios || []}
+          ejercicios={catalogs?.ejercicios || []}
+          usuarios={usuariosCatalog}
+          onOpenPlan={(planId) => navigate(`/planes/${planId}`)}
+          onRefresh={async () => {
+            await reloadModule();
+            await refreshCatalogs();
+          }}
+        />
+      ) : (
+        <ModuleScreen
+          activeModule={activeModule}
+          user={user}
+          usuariosCatalog={usuariosCatalog}
+          filteredRecords={filteredRecords}
+          selectedId={selectedId}
+          setSelectedId={setSelectedId}
+          loading={loading}
+          selectedRecord={selectedRecord}
+          reloadModule={reloadModule}
+          handleDelete={handleDelete}
+          createForm={createForm}
+          formMode={formMode}
+          setCreateForm={setCreateForm}
+          handleCreate={handleCreate}
+          openCreateForm={openCreateForm}
+          openEditForm={openEditForm}
+          closeForm={closeForm}
+          getOptionsForField={getOptionsForField}
+        />
+      )}
     </MainLayout>
   );
 }

@@ -1,7 +1,12 @@
 import { NavLink } from 'react-router-dom';
 
 function Sidebar({ modules, onLogout }) {
-  const visibleModules = modules.filter((module) => module.key !== 'categoria' && module.key !== 'tipo');
+  const visibleModules = modules.filter(
+    (module) => module.key !== 'categoria'
+      && module.key !== 'tipo'
+      && module.key !== 'rutina-dia'
+      && module.key !== 'rutina-ejercicio',
+  );
 
   return (
     <aside className="sidebar">

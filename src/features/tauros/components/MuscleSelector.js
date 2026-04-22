@@ -48,7 +48,7 @@ const MUSCLE_SEGMENTS = [
 const MuscleSelector = forwardRef(({ selectedMuscles = [], onToggleMuscle }, ref) => {
   return (
     <div style={{ width: '100%', maxWidth: '600px', margin: 'auto', background: '#1a1a1a', borderRadius: '12px', padding: '10px' }}>
-      <svg viewBox="0 0 600 600" style={{ width: '100%', height: 'auto' }}>
+      <svg ref={ref} viewBox="0 0 600 600" style={{ width: '100%', height: 'auto' }}>
         <image href={muscleBackground} width="600" height="600" />
 
         {MUSCLE_SEGMENTS.map((segment, index) => {

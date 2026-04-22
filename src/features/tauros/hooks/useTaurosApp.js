@@ -49,6 +49,7 @@ export function useTaurosApp() {
     maquinas: [],
     planes: [],
     rutinaDias: [],
+    rutinaEjercicios: [],
     ejercicios: [],
   });
   const [dashboardData, setDashboardData] = useState(EMPTY_DASHBOARD);
@@ -81,13 +82,14 @@ export function useTaurosApp() {
     }
 
     try {
-      const [usuarios, categorias, tipos, maquinas, planes, rutinaDias, ejercicios] = await Promise.all([
+      const [usuarios, categorias, tipos, maquinas, planes, rutinaDias, rutinaEjercicios, ejercicios] = await Promise.all([
         apiRequest('/usuario', token),
         apiRequest('/categoria', token),
         apiRequest('/tipo', token),
         apiRequest('/maquina', token),
         apiRequest('/plan-entrenamiento', token),
         apiRequest('/rutina-dia', token),
+        apiRequest('/rutina-ejercicio', token),
         apiRequest('/ejercicio', token),
       ]);
 
@@ -98,6 +100,7 @@ export function useTaurosApp() {
         maquinas: Array.isArray(maquinas) ? maquinas : [],
         planes: Array.isArray(planes) ? planes : [],
         rutinaDias: Array.isArray(rutinaDias) ? rutinaDias : [],
+        rutinaEjercicios: Array.isArray(rutinaEjercicios) ? rutinaEjercicios : [],
         ejercicios: Array.isArray(ejercicios) ? ejercicios : [],
       });
     } catch (_err) {
@@ -198,6 +201,19 @@ export function useTaurosApp() {
     return records.find((row) => String(row[activeModule.idField]) === String(selectedId)) || null;
   }, [activeModule, records, selectedId]);
 
+  useEffect(() => {
+    if (formMode !== 'edit') {
+      return;
+    }
+
+    if (selectedId) {
+      return;
+    }
+
+    setFormMode('closed');
+    setCreateForm(buildInitialForm(activeModule));
+  }, [activeModule, formMode, selectedId]);
+
   const reloadModule = async () => {
     if (!token || activeModuleKey === 'dashboard') {
       return;
@@ -230,12 +246,19 @@ export function useTaurosApp() {
     setSuccess('');
   };
 
-  const openEditForm = () => {
-    if (!selectedRecord || !activeModule.canCreate) {
+  const openEditForm = (recordOverride = null) => {
+    const recordToEdit = recordOverride || selectedRecord;
+
+    if (!recordToEdit || !activeModule.canCreate) {
       return;
     }
 
-    setCreateForm(buildFormFromRecord(selectedRecord, activeModule));
+    const nextForm = buildFormFromRecord(recordToEdit, activeModule);
+    if (activeModule.idField && recordToEdit?.[activeModule.idField]) {
+      nextForm[activeModule.idField] = String(recordToEdit[activeModule.idField]);
+    }
+
+    setCreateForm(nextForm);
     setFormMode('edit');
     setError('');
     setSuccess('');
@@ -259,7 +282,11 @@ export function useTaurosApp() {
     try {
       const linkVideoFile = createForm.linkVideoFile;
       const linkAMFile = createForm.linkAMFile;
+      const linkFotoFile = createForm.linkFotoFile;
       const payload = normalizePayload(createForm, activeModule);
+      const hasTextValue = (value) => typeof value === 'string' && value.trim().length > 0;
+      const editRecordId = createForm?.[activeModule.idField] || selectedRecord?.[activeModule.idField];
+
       if (activeModule.key === 'usuario') {
         if (formMode === 'edit' && user?.rol !== 'admin') {
           payload.rol = selectedRecord?.rol || 'user';
@@ -268,11 +295,68 @@ export function useTaurosApp() {
         }
       }
 
-      const shouldUseMultipart = activeModule.key === 'ejercicio'
-        && ((typeof File !== 'undefined' && linkVideoFile instanceof File)
-          || (typeof Blob !== 'undefined' && linkAMFile instanceof Blob));
+      if (activeModule.key === 'ejercicio' && formMode === 'edit') {
+        const selectedExerciseId = editRecordId;
+        if (selectedExerciseId) {
+          payload.ejercicioId = String(selectedExerciseId);
+        }
+      }
 
-      const requestBody = shouldUseMultipart
+      if (activeModule.key === 'ejercicio') {
+        const categoriaSeleccionada = payload.categoriaId
+          || createForm.categoriaId
+          || selectedRecord?.categoria?.categoriaId
+          || selectedRecord?.categoriaId;
+        const tipoSeleccionado = payload.tipoId
+          || createForm.tipoId
+          || selectedRecord?.tipo?.tipoId
+          || selectedRecord?.tipoId;
+
+        if (categoriaSeleccionada) {
+          payload.categoriaId = String(categoriaSeleccionada);
+        }
+
+        if (tipoSeleccionado) {
+          payload.tipoId = String(tipoSeleccionado);
+        }
+
+        if (!payload.categoriaId || !payload.tipoId) {
+          throw new Error('Debes seleccionar categoria y tipo para guardar el ejercicio');
+        }
+      }
+
+      const hasVideoFile = typeof File !== 'undefined' && linkVideoFile instanceof File;
+      const hasAMFile = typeof Blob !== 'undefined' && linkAMFile instanceof Blob;
+
+      if (activeModule.key === 'ejercicio' && formMode === 'create') {
+        const hasVideoValue = hasVideoFile || hasTextValue(payload.linkVideo);
+        const hasAMValue = hasAMFile || hasTextValue(payload.linkAM);
+
+        if (!hasVideoValue) {
+          throw new Error('Debes enviar linkVideo como archivo o enlace valido');
+        }
+
+        if (!hasAMValue) {
+          throw new Error('Debes enviar linkAM como archivo o enlace valido');
+        }
+      }
+
+      const shouldUseMultipart = activeModule.key === 'ejercicio'
+        && (hasVideoFile || hasAMFile);
+
+      const shouldUploadMachinePhoto = activeModule.key === 'maquina'
+        && typeof File !== 'undefined'
+        && linkFotoFile instanceof File;
+
+      if (shouldUploadMachinePhoto) {
+        delete payload.linkFoto;
+      }
+
+      if (activeModule.key === 'maquina' && formMode === 'create' && !shouldUploadMachinePhoto) {
+        throw new Error('Debes seleccionar una foto de la maquina');
+      }
+
+      const requestBody = (shouldUseMultipart || shouldUploadMachinePhoto)
         ? (() => {
           const formData = new FormData();
           Object.entries(payload).forEach(([key, value]) => {
@@ -282,21 +366,30 @@ export function useTaurosApp() {
             formData.append(key, String(value));
           });
 
-          if (typeof File !== 'undefined' && linkVideoFile instanceof File) {
+          if (hasVideoFile) {
             formData.append('linkVideo', linkVideoFile);
           }
 
-          if (typeof Blob !== 'undefined' && linkAMFile instanceof Blob) {
+          if (hasAMFile) {
             const amFile = linkAMFile instanceof File ? linkAMFile : new File([linkAMFile], `am-${Date.now()}.jpg`, { type: 'image/jpeg' });
             formData.append('linkAM', amFile);
+          }
+
+          if (activeModule.key === 'ejercicio') {
+            formData.set('categoriaId', String(payload.categoriaId || ''));
+            formData.set('tipoId', String(payload.tipoId || ''));
+          }
+
+          if (shouldUploadMachinePhoto) {
+            formData.append('linkFoto', linkFotoFile);
           }
 
           return formData;
         })()
         : JSON.stringify(payload);
 
-      if (formMode === 'edit' && selectedRecord?.[activeModule.idField]) {
-        await apiRequest(`${activeModule.endpoint}/${selectedRecord[activeModule.idField]}`, token, {
+      if (formMode === 'edit' && editRecordId) {
+        await apiRequest(`${activeModule.endpoint}/${editRecordId}`, token, {
           method: 'PATCH',
           body: requestBody,
         });
@@ -470,6 +563,7 @@ export function useTaurosApp() {
     openEditForm,
     closeForm,
     reloadModule,
+    refreshCatalogs: loadCatalogs,
     setActiveModuleKey,
     setAuthForm,
     setCreateForm,
@@ -477,3 +571,4 @@ export function useTaurosApp() {
     setSelectedId,
   };
 }
+

@@ -2,13 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getInputType, isOptionalField, resolveValue } from '../utils/form';
 import MuscleSelector, { MUSCLE_GROUPS } from './MuscleSelector';
+import muscleBackground from '../utils/pictures/Musculos.jpg';
 
 function isFileLike(value) {
   return typeof File !== 'undefined' && value instanceof File;
-}
-
-function isBlobLike(value) {
-  return typeof Blob !== 'undefined' && value instanceof Blob;
 }
 
 async function compressVideoFile(file) {
@@ -128,12 +125,20 @@ async function exportMuscleSvgToFile(svgElement) {
   const svgMarkup = serializer.serializeToString(svgElement);
   const encoded = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgMarkup)}`;
   const image = new Image();
+  const backgroundImage = new Image();
 
-  await new Promise((resolve, reject) => {
-    image.onload = resolve;
-    image.onerror = reject;
-    image.src = encoded;
-  });
+  await Promise.all([
+    new Promise((resolve, reject) => {
+      image.onload = resolve;
+      image.onerror = reject;
+      image.src = encoded;
+    }),
+    new Promise((resolve, reject) => {
+      backgroundImage.onload = resolve;
+      backgroundImage.onerror = reject;
+      backgroundImage.src = muscleBackground;
+    }),
+  ]);
 
   const canvas = document.createElement('canvas');
   canvas.width = 720;
@@ -144,8 +149,8 @@ async function exportMuscleSvgToFile(svgElement) {
     return null;
   }
 
-  context.fillStyle = '#141414';
-  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
 
   const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.72));
@@ -175,7 +180,7 @@ function formatLabel(field) {
     descripcion: 'Descripcion',
     linkVideo: 'Video',
     linkAM: 'Link AM',
-    linkFoto: 'Link de foto',
+    linkFoto: 'Foto de la maquina',
     diasSemanales: 'Dias semanales',
     apertura: 'Apertura',
     cierre: 'Cierre',
@@ -259,6 +264,138 @@ function getCompositionUserId(record) {
   return record?.usuario?.userId || record?.usuarioId || null;
 }
 
+function getExerciseMetaValue(record, field, options = []) {
+  const nestedValue = record?.[field];
+  if (nestedValue && typeof nestedValue === 'object' && !Array.isArray(nestedValue)) {
+    if (nestedValue.nombre) {
+      return String(nestedValue.nombre);
+    }
+  }
+
+  const directValue = resolveValue(record, field);
+
+  if (typeof directValue === 'object' && directValue !== null && directValue !== '-') {
+    if (directValue.nombre) {
+      return directValue.nombre;
+    }
+  } else if (directValue && directValue !== '-') {
+    if (typeof directValue === 'string' && directValue.trim().startsWith('{')) {
+      try {
+        const parsed = JSON.parse(directValue);
+        if (parsed && typeof parsed === 'object' && parsed.nombre) {
+          return String(parsed.nombre);
+        }
+      } catch (_error) {
+        // If the string is not valid JSON we keep the normal fallback flow.
+      }
+    }
+
+    return directValue;
+  }
+
+  const fieldId = field.endsWith('Id') ? field : `${field}Id`;
+  const rawId = record?.[fieldId] ?? record?.[field];
+  if (rawId === null || rawId === undefined || rawId === '') {
+    return '-';
+  }
+
+  const matched = options.find((option) => String(option.value) === String(rawId));
+  return matched?.label || String(rawId);
+}
+
+function buildExerciseVideoThumbnail(videoUrl) {
+  if (!videoUrl || typeof videoUrl !== 'string') {
+    return '';
+  }
+
+  try {
+    const parsed = new URL(videoUrl);
+    if (!parsed.hostname.includes('res.cloudinary.com') || !parsed.pathname.includes('/video/upload/')) {
+      return '';
+    }
+
+    const [prefix, suffix] = parsed.pathname.split('/video/upload/');
+    if (!suffix) {
+      return '';
+    }
+
+    const jpgPath = suffix.replace(/\.[^./?]+$/, '.jpg');
+    const thumbnailPath = `${prefix}/video/upload/so_0/${jpgPath}`;
+    return `${parsed.origin}${thumbnailPath}${parsed.search || ''}`;
+  } catch (_error) {
+    return '';
+  }
+}
+
+function ExerciseVideoThumbnail({ src, className = '', alt = 'Miniatura del video' }) {
+  const thumbnailSrc = useMemo(() => buildExerciseVideoThumbnail(src), [src]);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setFailed(false);
+  }, [thumbnailSrc]);
+
+  if (!thumbnailSrc || failed) {
+    return <div className={`${className} exercise-card__poster--empty`}>Sin miniatura</div>;
+  }
+
+  return (
+    <img
+      src={thumbnailSrc}
+      alt={alt}
+      className={className}
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
+function ExerciseVideoPreview({ src, className = '', controls = false, autoPlay = false, expanded = false }) {
+  const videoRef = useRef(null);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) {
+      return undefined;
+    }
+
+    const snapToFirstFrame = () => {
+      try {
+        video.pause();
+        video.currentTime = 0;
+      } catch (_error) {
+        // Some browsers throw while metadata is still loading.
+      }
+    };
+
+    const handleLoadedData = () => {
+      snapToFirstFrame();
+      if (expanded && autoPlay) {
+        video.play().catch(() => {});
+      }
+    };
+
+    video.addEventListener('loadeddata', handleLoadedData);
+    snapToFirstFrame();
+
+    return () => {
+      video.removeEventListener('loadeddata', handleLoadedData);
+    };
+  }, [autoPlay, expanded, src]);
+
+  return (
+    <video
+      ref={videoRef}
+      className={className}
+      src={src}
+      controls={controls}
+      muted
+      playsInline
+      preload={expanded ? 'auto' : 'metadata'}
+    />
+  );
+}
+
 function ModuleScreen({
   activeModule,
   user,
@@ -282,6 +419,7 @@ function ModuleScreen({
   const isUserModule = activeModule.key === 'usuario';
   const isCompositionModule = activeModule.key === 'composicion-corporal';
   const isExerciseModule = activeModule.key === 'ejercicio';
+  const isMachineModule = activeModule.key === 'maquina';
   const isCategoryOrTypeModule = activeModule.key === 'categoria' || activeModule.key === 'tipo';
   const navigate = useNavigate();
   const muscleSvgRef = useRef(null);
@@ -383,6 +521,7 @@ function ModuleScreen({
   const rowsToRender = isExerciseModule ? exerciseFilteredRecords : filteredRecords;
   const categoriaOptions = isExerciseModule ? getOptionsForField('categoriaId') : [];
   const tipoOptions = isExerciseModule ? getOptionsForField('tipoId') : [];
+  const machineOptions = isExerciseModule ? getOptionsForField('maquinaId') : [];
 
   const visibleCount = isCompositionModule ? compositionGroups.length : rowsToRender.length;
 
@@ -407,6 +546,8 @@ function ModuleScreen({
       setTipoFilter('');
     }
   }, [isExerciseModule]);
+
+  const machinePhotoLabel = createForm.linkFotoFile?.name || createForm.linkFoto || 'Sin archivo';
 
   useEffect(() => {
     if (!isExerciseModule) {
@@ -526,8 +667,8 @@ function ModuleScreen({
               {formMode === 'create' ? 'Cerrar registro' : (isUserModule ? 'Crear usuario' : 'Crear')}
             </button>
           )}
-          {activeModule.canCreate && selectedRecord && (
-            <button type="button" className="btn-action" onClick={openEditForm}>
+          {activeModule.canCreate && selectedRecord && !isExerciseModule && (
+            <button type="button" className="btn-action" onClick={() => openEditForm()}>
               {isUserModule ? 'Editar usuario' : 'Editar seleccionado'}
             </button>
           )}
@@ -553,7 +694,7 @@ function ModuleScreen({
               Agregar
             </button>
           )}
-          {activeModule.canDelete && selectedRecord && (
+          {activeModule.canDelete && selectedRecord && !isExerciseModule && (
             <button
               type="button"
               className="btn-action danger"
@@ -565,88 +706,242 @@ function ModuleScreen({
           {activeModule.isStub && <span className="stub-badge">Backend en construccion</span>}
         </div>
 
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>SEL</th>
-                {visibleFields.map((field) => (
-                  <th key={field}>{formatLabel(field)}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {isCompositionModule
-                ? compositionGroups.flatMap((group) => {
-                  const latest = group.latest;
-                  const latestId = String(latest?.[activeModule.idField]);
-                  const isSelected = selectedId === latestId;
+        <div className={isExerciseModule ? 'exercise-card-grid' : (isMachineModule ? 'machine-card-grid' : 'table-scroll')}>
+          {isExerciseModule ? (
+            rowsToRender.length ? rowsToRender.map((row) => {
+              const id = String(row?.[activeModule.idField] || row?.nombre || JSON.stringify(row));
+              const isSelected = selectedId === id;
+              const nombre = resolveValue(row, 'nombre');
+              const categoria = getExerciseMetaValue(row, 'categoria', categoriaOptions);
+              const tipo = getExerciseMetaValue(row, 'tipo', tipoOptions);
+              const maquina = getExerciseMetaValue(row, 'maquina', machineOptions);
+              const videoSrc = row?.linkVideo || '';
+              const amSrc = row?.linkAM || '';
+              const hasMeta = [categoria, tipo, maquina].some((value) => value && value !== '-');
 
-                  const mainRow = (
-                    <tr key={`latest-${latestId}`} className={isSelected ? 'row-selected' : ''}>
-                      <td>
+              return (
+                <details key={id} className={`exercise-card ${isSelected ? 'exercise-card--selected' : ''}`} open={isSelected}>
+                  <summary
+                    className="exercise-card__summary"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      setSelectedId(isSelected ? '' : id);
+                    }}
+                  >
+                    <div className="exercise-card__summary-main">
+                      <ExerciseVideoThumbnail
+                        src={videoSrc}
+                        className="exercise-card__poster"
+                        alt={`Miniatura de ${nombre}`}
+                      />
+                      <div className="exercise-card__summary-copy">
+                        <span className="exercise-card__eyebrow">Ejercicio</span>
+                        <h3>{nombre}</h3>
+                        <p>{hasMeta ? [categoria, tipo, maquina].filter((value) => value && value !== '-').join(' · ') : 'Sin categoría, tipo o máquina asociadas'}</p>
+                      </div>
+                    </div>
+                    <span className="exercise-card__toggle">{isSelected ? 'Contraer' : 'Abrir'}</span>
+                  </summary>
+
+                  <div className="exercise-card__body">
+                    <div className="exercise-card__detail-grid">
+                      <div>
+                        <span>Nombre</span>
+                        <strong>{nombre}</strong>
+                      </div>
+                      <div>
+                        <span>Categoría</span>
+                        <strong>{categoria}</strong>
+                      </div>
+                      <div>
+                        <span>Tipo</span>
+                        <strong>{tipo}</strong>
+                      </div>
+                      <div>
+                        <span>Máquina</span>
+                        <strong>{maquina}</strong>
+                      </div>
+                    </div>
+
+                    <div className="exercise-card__media">
+                      <section>
+                        <h4>Video</h4>
+                        <ExerciseVideoPreview
+                          src={videoSrc}
+                          className="exercise-card__video"
+                          controls
+                          autoPlay
+                          expanded={isSelected}
+                        />
+                      </section>
+
+                      <section>
+                        <h4>Activación muscular</h4>
+                        {amSrc ? (
+                          <img src={amSrc} alt={`Activación muscular de ${nombre}`} className="exercise-card__am" />
+                        ) : (
+                          <div className="exercise-card__empty-media">Sin imagen AM</div>
+                        )}
+                      </section>
+                    </div>
+
+                    <div className="exercise-card__actions">
+                      <button
+                        type="button"
+                        className="btn-action"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openEditForm(row);
+                        }}
+                      >
+                        Editar
+                      </button>
+                      {activeModule.canDelete && (
                         <button
                           type="button"
-                          className={`row-select ${isSelected ? 'selected' : ''}`}
-                          aria-pressed={isSelected}
-                          onClick={() => (isSelected ? closeForm() : setSelectedId(latestId))}
+                          className="btn-action danger"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setSelectedId(id);
+                            handleDelete();
+                          }}
                         >
-                          {isSelected ? '●' : '○'}
+                          Eliminar
                         </button>
-                      </td>
-                      {visibleFields.map((field) => (
-                        <td key={`latest-${latestId}-${field}`}>{resolveValue(latest, field)}</td>
-                      ))}
-                    </tr>
-                  );
+                      )}
+                    </div>
+                  </div>
+                </details>
+              );
+            }) : (
+              <div className="exercise-empty">No hay registros para mostrar.</div>
+            )
+          ) : isMachineModule ? (
+            rowsToRender.length ? rowsToRender.map((row) => {
+              const id = String(row?.[activeModule.idField] || row?.nombre || JSON.stringify(row));
+              const isSelected = selectedId === id;
+              const nombre = resolveValue(row, 'nombre');
+              const numeroMaquina = resolveValue(row, 'numeroMaquina');
+              const fotoSrc = row?.linkFoto || '';
 
-                  if (!isSelected || group.history.length === 0) {
-                    return [mainRow];
-                  }
+              return (
+                <article
+                  key={id}
+                  className={`machine-card ${isSelected ? 'machine-card--selected' : ''}`}
+                  onClick={() => setSelectedId(isSelected ? '' : id)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setSelectedId(isSelected ? '' : id);
+                    }
+                  }}
+                >
+                  {fotoSrc ? (
+                    <img
+                      src={fotoSrc}
+                      alt={`Foto de ${nombre}`}
+                      className="machine-card__image"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div className="machine-card__image machine-card__image--empty">Sin imagen</div>
+                  )}
 
-                  const historyRows = group.history.map((row) => {
-                    const rowId = String(row?.[activeModule.idField]);
-                    return (
-                      <tr key={`history-${rowId}`} className="history-row">
-                        <td />
+                  <div className="machine-card__copy">
+                    <span className="machine-card__eyebrow">Maquina</span>
+                    <h3>{nombre}</h3>
+                    <p>N.{numeroMaquina}</p>
+                  </div>
+                </article>
+              );
+            }) : (
+              <div className="exercise-empty">No hay registros para mostrar.</div>
+            )
+          ) : (
+            <table>
+              <thead>
+                <tr>
+                  <th>SEL</th>
+                  {visibleFields.map((field) => (
+                    <th key={field}>{formatLabel(field)}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {isCompositionModule
+                  ? compositionGroups.flatMap((group) => {
+                    const latest = group.latest;
+                    const latestId = String(latest?.[activeModule.idField]);
+                    const isSelected = selectedId === latestId;
+
+                    const mainRow = (
+                      <tr key={`latest-${latestId}`} className={isSelected ? 'row-selected' : ''}>
+                        <td>
+                          <button
+                            type="button"
+                            className={`row-select ${isSelected ? 'selected' : ''}`}
+                            aria-pressed={isSelected}
+                            onClick={() => (isSelected ? closeForm() : setSelectedId(latestId))}
+                          >
+                            {isSelected ? '●' : '○'}
+                          </button>
+                        </td>
                         {visibleFields.map((field) => (
-                          <td key={`history-${rowId}-${field}`}>{resolveValue(row, field)}</td>
+                          <td key={`latest-${latestId}-${field}`}>{resolveValue(latest, field)}</td>
                         ))}
                       </tr>
                     );
-                  });
 
-                  return [mainRow, ...historyRows];
-                })
-                : rowsToRender.map((row) => {
-                  const id = row[activeModule.idField] || JSON.stringify(row);
-                  const isSelected = selectedId === String(id);
-                  return (
-                    <tr key={id} className={isSelected ? 'row-selected' : ''}>
-                      <td>
-                        <button
-                          type="button"
-                          className={`row-select ${isSelected ? 'selected' : ''}`}
-                          aria-pressed={isSelected}
-                          onClick={() => (isSelected ? closeForm() : setSelectedId(String(id)))}
-                        >
-                          {isSelected ? '●' : '○'}
-                        </button>
-                      </td>
-                      {visibleFields.map((field) => (
-                        <td key={`${id}-${field}`}>{resolveValue(row, field)}</td>
-                      ))}
-                    </tr>
-                  );
-                })}
+                    if (!isSelected || group.history.length === 0) {
+                      return [mainRow];
+                    }
 
-              {!(isCompositionModule ? compositionGroups.length : rowsToRender.length) && (
-                <tr>
-                  <td colSpan={visibleFields.length + 1}>No hay registros para mostrar.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                    const historyRows = group.history.map((row) => {
+                      const rowId = String(row?.[activeModule.idField]);
+                      return (
+                        <tr key={`history-${rowId}`} className="history-row">
+                          <td />
+                          {visibleFields.map((field) => (
+                            <td key={`history-${rowId}-${field}`}>{resolveValue(row, field)}</td>
+                          ))}
+                        </tr>
+                      );
+                    });
+
+                    return [mainRow, ...historyRows];
+                  })
+                  : rowsToRender.map((row) => {
+                    const id = row[activeModule.idField] || JSON.stringify(row);
+                    const isSelected = selectedId === String(id);
+                    return (
+                      <tr key={id} className={isSelected ? 'row-selected' : ''}>
+                        <td>
+                          <button
+                            type="button"
+                            className={`row-select ${isSelected ? 'selected' : ''}`}
+                            aria-pressed={isSelected}
+                            onClick={() => (isSelected ? closeForm() : setSelectedId(String(id)))}
+                          >
+                            {isSelected ? '●' : '○'}
+                          </button>
+                        </td>
+                        {visibleFields.map((field) => (
+                          <td key={`${id}-${field}`}>{resolveValue(row, field)}</td>
+                        ))}
+                      </tr>
+                    );
+                  })}
+
+                {!(isCompositionModule ? compositionGroups.length : rowsToRender.length) && (
+                  <tr>
+                    <td colSpan={visibleFields.length + 1}>No hay registros para mostrar.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </article>
 
@@ -722,6 +1017,7 @@ function ModuleScreen({
                     <input
                       type="file"
                       accept="video/*"
+                      required={formMode === 'create'}
                       onChange={async (event) => {
                         const selected = event.target.files?.[0];
                         if (!selected) {
@@ -744,6 +1040,7 @@ function ModuleScreen({
               }
 
               if (isExerciseModule && field === 'linkAM') {
+                const amLabel = createForm.linkAMFile?.name || createForm.linkAM || 'Sin archivo generado';
                 return (
                   <label key={field}>
                     Activacion muscular (AM)
@@ -782,9 +1079,51 @@ function ModuleScreen({
                         })}
                       </div>
                     </div>
+                    <span>{`Archivo AM: ${amLabel}`}</span>
+                    <small>Selecciona al menos un musculo para generar el archivo AM requerido.</small>
                     {musclePreviewUrl && (
                       <img src={musclePreviewUrl} alt="Vista previa AM" className="muscle-preview" />
                     )}
+                  </label>
+                );
+              }
+
+              if (isMachineModule && field === 'linkFoto') {
+                return (
+                  <label key={field}>
+                    Foto de la maquina
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(event) => {
+                        const selected = event.target.files?.[0];
+                        setCreateForm((current) => ({
+                          ...current,
+                          linkFotoFile: selected || undefined,
+                          linkFoto: selected ? '' : current.linkFoto,
+                        }));
+                      }}
+                      required={formMode === 'create'}
+                    />
+                    <span>{machinePhotoLabel}</span>
+                  </label>
+                );
+              }
+
+              if (isExerciseModule && field === 'maquinaId') {
+                const machineOptions = getOptionsForField('maquinaId');
+                return (
+                  <label key={field}>
+                    {formatLabel(field)}
+                    <select
+                      value={createForm[field] ?? ''}
+                      onChange={(event) => setCreateForm((current) => ({ ...current, [field]: event.target.value }))}
+                    >
+                      <option value="">Sin maquina</option>
+                      {machineOptions.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
                   </label>
                 );
               }

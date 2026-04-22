@@ -3,6 +3,7 @@ import './App.css';
 import AuthPage from './features/tauros/pages/AuthPage';
 import DashboardPage from './features/tauros/pages/DashboardPage';
 import ModulePage from './features/tauros/pages/ModulePage';
+import PlanDetailPage from './features/tauros/pages/PlanDetailPage';
 import NotFoundPage from './features/tauros/pages/NotFoundPage';
 import { MODULES, MODULE_MAP } from './features/tauros/config/modules';
 import { useTaurosApp } from './features/tauros/hooks/useTaurosApp';
@@ -25,8 +26,10 @@ function App() {
     setActiveModuleKey: app.setActiveModuleKey,
     searchTerm: app.searchTerm,
     setSearchTerm: app.setSearchTerm,
+    token: app.token,
     user: app.user,
     usuariosCatalog: app.catalogs.usuarios,
+    catalogs: app.catalogs,
     onLogout: app.handleLogout,
     filteredRecords: app.filteredRecords,
     selectedId: app.selectedId,
@@ -46,6 +49,7 @@ function App() {
     error: app.error,
     success: app.success,
     moduleMessage: app.moduleMessage,
+    refreshCatalogs: app.refreshCatalogs,
   });
 
   return (
@@ -138,6 +142,23 @@ function App() {
           element={(
             <RequireAuth token={token}>
               <ModulePage {...modulePageProps('plan-entrenamiento')} />
+            </RequireAuth>
+          )}
+        />
+        <Route
+          path="/planes/:planId"
+          element={(
+            <RequireAuth token={token}>
+              <PlanDetailPage
+                modules={MODULES}
+                activeModule={MODULE_MAP['plan-entrenamiento']}
+                setActiveModuleKey={app.setActiveModuleKey}
+                searchTerm={app.searchTerm}
+                setSearchTerm={app.setSearchTerm}
+                token={app.token}
+                user={app.user}
+                onLogout={app.handleLogout}
+              />
             </RequireAuth>
           )}
         />

@@ -196,6 +196,10 @@ export function normalizePayload(form, config) {
     delete payload.linkAMFile;
   }
 
+  if (payload.linkFotoFile !== undefined) {
+    delete payload.linkFotoFile;
+  }
+
   if (payload.musculosSeleccionados !== undefined) {
     delete payload.musculosSeleccionados;
   }
