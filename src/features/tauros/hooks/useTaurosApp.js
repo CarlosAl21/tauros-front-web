@@ -325,6 +325,31 @@ export function useTaurosApp() {
         }
       }
 
+      if (activeModule.key === 'horario' && formMode === 'create') {
+        const selectedDays = Array.isArray(createForm.diasSeleccionados)
+          ? createForm.diasSeleccionados
+          : [];
+
+        if (!selectedDays.length) {
+          throw new Error('Selecciona al menos un dia de la semana');
+        }
+
+        if (!payload.apertura || !payload.cierre) {
+          throw new Error('Define hora de apertura y cierre por defecto');
+        }
+
+        const byDay = createForm.horariosPorDia && typeof createForm.horariosPorDia === 'object'
+          ? createForm.horariosPorDia
+          : {};
+
+        payload.diasSeleccionados = selectedDays;
+        payload.horariosPorDia = selectedDays.map((day) => ({
+          diaSemana: day,
+          apertura: byDay[day]?.apertura || payload.apertura,
+          cierre: byDay[day]?.cierre || payload.cierre,
+        }));
+      }
+
       const hasVideoFile = typeof File !== 'undefined' && linkVideoFile instanceof File;
       const hasAMFile = typeof Blob !== 'undefined' && linkAMFile instanceof Blob;
 
@@ -428,6 +453,7 @@ export function useTaurosApp() {
       setSelectedId('');
       await reloadModule();
       await loadCatalogs();
+      window.location.reload();
     } catch (err) {
       setError(err.message || 'No se pudo eliminar el registro');
     }

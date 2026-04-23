@@ -11,6 +11,19 @@ function formatDateOnly(value) {
   return date.toISOString().slice(0, 10);
 }
 
+function formatTimeOnly(value) {
+  if (!value) {
+    return '-';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '-';
+  }
+
+  return date.toISOString().slice(11, 16);
+}
+
 export function resolveValue(obj, path) {
   if (path === 'usuario.nombreCompleto') {
     const usuario = obj?.usuario;
@@ -101,6 +114,19 @@ function formatDateTimeInputValue(value) {
   return date.toISOString().slice(0, 16);
 }
 
+function formatTimeInputValue(value) {
+  if (!value) {
+    return '';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return date.toISOString().slice(11, 16);
+}
+
 export function buildFormFromRecord(record, config) {
   if (!record || !config?.formFields) {
     return buildInitialForm(config);
@@ -141,7 +167,12 @@ export function buildFormFromRecord(record, config) {
     }
 
     if (field === 'fechaHora') {
-      return { ...acc, [field]: formatDateTimeInputValue(value) };
+      return {
+        ...acc,
+        [field]: formatDateTimeInputValue(value),
+        fechaHoraFecha: formatDateInputValue(value),
+        fechaHoraHora: formatTimeInputValue(value),
+      };
     }
 
     if (field === 'fechaNacimiento') {
@@ -158,6 +189,25 @@ export function buildFormFromRecord(record, config) {
 
 export function normalizePayload(form, config) {
   const payload = { ...form };
+
+  if (payload.fechaHoraFecha || payload.fechaHoraHora) {
+    const datePart = payload.fechaHoraFecha
+      || (typeof payload.fechaHora === 'string' && payload.fechaHora.includes('T') ? payload.fechaHora.slice(0, 10) : '');
+    const timePart = payload.fechaHoraHora
+      || (typeof payload.fechaHora === 'string' && payload.fechaHora.includes('T') ? payload.fechaHora.slice(11, 16) : '00:00');
+
+    if (datePart) {
+      payload.fechaHora = `${datePart}T${timePart || '00:00'}:00`;
+    }
+  }
+
+  if (payload.fechaHoraFecha !== undefined) {
+    delete payload.fechaHoraFecha;
+  }
+
+  if (payload.fechaHoraHora !== undefined) {
+    delete payload.fechaHoraHora;
+  }
 
   (config.numberFields || []).forEach((field) => {
     if (payload[field] === '' || payload[field] === null || payload[field] === undefined) {

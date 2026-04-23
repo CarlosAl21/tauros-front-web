@@ -18,6 +18,8 @@ function PlanDetailPage({
   const { planId } = useParams();
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
+  const [deletePromptOpen, setDeletePromptOpen] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -59,6 +61,26 @@ function PlanDetailPage({
     };
   }, [planId, token]);
 
+  const handleDeletePlan = async () => {
+    if (!planId) {
+      return;
+    }
+
+    try {
+      setDeleting(true);
+      setError('');
+      await apiRequest(`/plan-entrenamiento/${planId}`, token, {
+        method: 'DELETE',
+      });
+      window.location.assign('/planes');
+    } catch (err) {
+      setError(err.message || 'No se pudo eliminar el plan');
+    } finally {
+      setDeleting(false);
+      setDeletePromptOpen(false);
+    }
+  };
+
   return (
     <MainLayout
       modules={modules}
@@ -74,7 +96,51 @@ function PlanDetailPage({
         <button type="button" className="btn-action" onClick={() => navigate('/planes')}>
           Regresar
         </button>
+        <button
+          type="button"
+          className="btn-action"
+          onClick={() => navigate('/planes', { state: { editPlanId: planId } })}
+        >
+          Editar
+        </button>
+        <button
+          type="button"
+          className="btn-action danger"
+          onClick={() => setDeletePromptOpen(true)}
+          disabled={deleting}
+        >
+          {deleting ? 'Borrando...' : 'Borrar'}
+        </button>
       </div>
+      {deletePromptOpen && (
+        <div className="confirm-overlay" role="presentation" onClick={() => !deleting && setDeletePromptOpen(false)}>
+          <article
+            className="confirm-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirm-delete-plan-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <h3 id="confirm-delete-plan-title">Confirmar eliminacion</h3>
+            <p>
+              Este plan de entrenamiento se eliminara de forma permanente. Esta accion no se puede deshacer.
+            </p>
+            <div className="confirm-card__actions">
+              <button
+                type="button"
+                className="btn-action"
+                onClick={() => setDeletePromptOpen(false)}
+                disabled={deleting}
+              >
+                Cancelar
+              </button>
+              <button type="button" className="btn-action danger" onClick={handleDeletePlan} disabled={deleting}>
+                {deleting ? 'Borrando...' : 'Si, borrar plan'}
+              </button>
+            </div>
+          </article>
+        </div>
+      )}
       {error && <p className="status error">{error}</p>}
       <PlanDetailScreen plan={plan} loading={loading} />
     </MainLayout>

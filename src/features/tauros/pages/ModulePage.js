@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout';
 import ModuleScreen from '../components/ModuleScreen';
 import PlanBuilderScreen from '../components/PlanBuilderScreen';
@@ -36,6 +36,28 @@ function ModulePage({
   refreshCatalogs,
 }) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const initialEditPlanId = location?.state?.editPlanId || '';
+  const refreshPlansTokenRef = useRef('');
+
+  useEffect(() => {
+    if (activeModule.key !== 'plan-entrenamiento') {
+      return;
+    }
+
+    const refreshToken = location.state?.refreshPlans || '';
+    if (!refreshToken || refreshPlansTokenRef.current === String(refreshToken)) {
+      return;
+    }
+
+    refreshPlansTokenRef.current = String(refreshToken);
+
+    const refreshPlansView = async () => {
+      await reloadModule();
+    };
+
+    refreshPlansView();
+  }, [activeModule.key, location.state, reloadModule]);
 
   useEffect(() => {
     setActiveModuleKey(activeModule.key);
@@ -73,6 +95,7 @@ function ModulePage({
           rutinaEjercicios={catalogs?.rutinaEjercicios || []}
           ejercicios={catalogs?.ejercicios || []}
           usuarios={usuariosCatalog}
+          initialEditPlanId={initialEditPlanId}
           onOpenPlan={(planId) => navigate(`/planes/${planId}`)}
           onRefresh={async () => {
             await reloadModule();

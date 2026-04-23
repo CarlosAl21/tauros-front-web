@@ -7,10 +7,9 @@ function PlanDetailScreen({ plan, loading }) {
     return <div className="plan-detail-empty">No se encontró el plan solicitado.</div>;
   }
 
-  const dias = Array.isArray(plan.rutinasDia) ? plan.rutinasDia : [];
-  const usuarioNombre = plan?.usuario
-    ? [plan.usuario.nombre, plan.usuario.apellido].filter(Boolean).join(' ').trim() || plan.usuario.correo || 'Sin usuario'
-    : 'Sin usuario';
+  const dias = (Array.isArray(plan.rutinasDia) ? plan.rutinasDia : [])
+    .slice()
+    .sort((left, right) => Number(left?.numeroDia || 0) - Number(right?.numeroDia || 0));
 
   return (
     <section className="plan-detail-shell">
@@ -30,8 +29,8 @@ function PlanDetailScreen({ plan, loading }) {
 
         <div className="plan-detail-summary">
           <div>
-            <span>Usuario</span>
-            <strong>{usuarioNombre}</strong>
+            <span>Tipo</span>
+            <strong>{plan.esPlantilla ? 'Plantilla' : 'Plan asignado'}</strong>
           </div>
           <div>
             <span>Dias configurados</span>
@@ -42,7 +41,9 @@ function PlanDetailScreen({ plan, loading }) {
 
       <div className="plan-detail-days">
         {dias.length ? dias.map((dia) => {
-          const ejercicios = Array.isArray(dia.rutinasEjercicio) ? dia.rutinasEjercicio : [];
+          const ejercicios = (Array.isArray(dia.rutinasEjercicio) ? dia.rutinasEjercicio : [])
+            .slice()
+            .sort((left, right) => Number(left?.orden || 0) - Number(right?.orden || 0));
 
           return (
             <article key={dia.rutinaDiaId} className="plan-day-card">

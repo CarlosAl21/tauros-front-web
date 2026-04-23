@@ -260,6 +260,34 @@ function toDateValue(value) {
   return date.getTime();
 }
 
+function formatEventDateValue(value) {
+  if (!value) {
+    return '-';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
+function formatEventTimeValue(value) {
+  if (!value) {
+    return '-';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '-';
+  }
+
+  return date.toISOString().slice(11, 16);
+}
+
+const WEEK_DAYS = ['Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo'];
+
 function getCompositionUserId(record) {
   return record?.usuario?.userId || record?.usuarioId || null;
 }
@@ -420,13 +448,23 @@ function ModuleScreen({
   const isCompositionModule = activeModule.key === 'composicion-corporal';
   const isExerciseModule = activeModule.key === 'ejercicio';
   const isMachineModule = activeModule.key === 'maquina';
+  const isEventModule = activeModule.key === 'evento';
   const isCategoryOrTypeModule = activeModule.key === 'categoria' || activeModule.key === 'tipo';
   const navigate = useNavigate();
   const muscleSvgRef = useRef(null);
-  const visibleFields = (activeModule.fields || []).filter((field) => !shouldHideField(field, activeModule.idField));
+  const visibleFields = useMemo(() => {
+    const baseFields = (activeModule.fields || []).filter((field) => !shouldHideField(field, activeModule.idField));
+    if (activeModule.key !== 'evento') {
+      return baseFields;
+    }
+
+    return baseFields.flatMap((field) => (field === 'fechaHora' ? ['fechaHoraFecha', 'fechaHoraHora'] : [field]));
+  }, [activeModule.fields, activeModule.idField, activeModule.key]);
   const [usuarioSearch, setUsuarioSearch] = useState('');
   const [categoriaFilter, setCategoriaFilter] = useState('');
   const [tipoFilter, setTipoFilter] = useState('');
+  const [showInactiveEvents, setShowInactiveEvents] = useState(false);
+  const [showEventDetails, setShowEventDetails] = useState(false);
   const [selectedMuscles, setSelectedMuscles] = useState([]);
   const [videoProcessing, setVideoProcessing] = useState(false);
   const [musclePreviewUrl, setMusclePreviewUrl] = useState('');
@@ -518,12 +556,49 @@ function ModuleScreen({
     });
   }, [categoriaFilter, filteredRecords, isExerciseModule, tipoFilter]);
 
-  const rowsToRender = isExerciseModule ? exerciseFilteredRecords : filteredRecords;
+  const eventFilteredRecords = useMemo(() => {
+    if (!isEventModule) {
+      return filteredRecords;
+    }
+
+    return filteredRecords.filter((record) => {
+      const isActive = record?.activo !== false;
+      return showInactiveEvents ? !isActive : isActive;
+    });
+  }, [filteredRecords, isEventModule, showInactiveEvents]);
+
+  const rowsToRender = isExerciseModule
+    ? exerciseFilteredRecords
+    : (isEventModule ? eventFilteredRecords : filteredRecords);
   const categoriaOptions = isExerciseModule ? getOptionsForField('categoriaId') : [];
   const tipoOptions = isExerciseModule ? getOptionsForField('tipoId') : [];
   const machineOptions = isExerciseModule ? getOptionsForField('maquinaId') : [];
 
   const visibleCount = isCompositionModule ? compositionGroups.length : rowsToRender.length;
+
+  const getColumnLabel = (field) => {
+    if (field === 'fechaHoraFecha') {
+      return 'Fecha';
+    }
+
+    if (field === 'fechaHoraHora') {
+      return 'Hora';
+    }
+
+    return formatLabel(field);
+  };
+
+  const resolveTableCellValue = (row, field) => {
+    if (field === 'fechaHoraFecha') {
+      return formatEventDateValue(row?.fechaHora);
+    }
+
+    if (field === 'fechaHoraHora') {
+      return formatEventTimeValue(row?.fechaHora);
+    }
+
+    return resolveValue(row, field);
+  };
 
   useEffect(() => {
     if (formMode === 'closed' || !isCompositionModule) {
@@ -546,6 +621,32 @@ function ModuleScreen({
       setTipoFilter('');
     }
   }, [isExerciseModule]);
+
+  useEffect(() => {
+    if (!isEventModule) {
+      setShowInactiveEvents(false);
+      setShowEventDetails(false);
+    }
+  }, [isEventModule]);
+
+  useEffect(() => {
+    if (!isEventModule) {
+      return;
+    }
+
+    setShowEventDetails(false);
+  }, [isEventModule, selectedId]);
+
+  useEffect(() => {
+    if (!selectedId) {
+      return;
+    }
+
+    const existsInRows = rowsToRender.some((row) => String(row?.[activeModule.idField]) === String(selectedId));
+    if (!existsInRows) {
+      setSelectedId('');
+    }
+  }, [activeModule.idField, rowsToRender, selectedId, setSelectedId]);
 
   const machinePhotoLabel = createForm.linkFotoFile?.name || createForm.linkFoto || 'Sin archivo';
 
@@ -628,6 +729,24 @@ function ModuleScreen({
             </button>
           )}
           <button type="button" className="btn-action" onClick={reloadModule}>Recargar</button>
+          {isEventModule && (
+            <button
+              type="button"
+              className="btn-action"
+              onClick={() => setShowInactiveEvents((current) => !current)}
+            >
+              {showInactiveEvents ? 'Ver activos' : 'Ver desactivados'}
+            </button>
+          )}
+          {isEventModule && selectedRecord && (
+            <button
+              type="button"
+              className="btn-action"
+              onClick={() => setShowEventDetails((current) => !current)}
+            >
+              {showEventDetails ? 'Ocultar detalle' : 'Ver detalle'}
+            </button>
+          )}
           {isExerciseModule && (
             <>
               <label className="inline-filter">
@@ -865,7 +984,7 @@ function ModuleScreen({
                 <tr>
                   <th>SEL</th>
                   {visibleFields.map((field) => (
-                    <th key={field}>{formatLabel(field)}</th>
+                    <th key={field}>{getColumnLabel(field)}</th>
                   ))}
                 </tr>
               </thead>
@@ -889,7 +1008,7 @@ function ModuleScreen({
                           </button>
                         </td>
                         {visibleFields.map((field) => (
-                          <td key={`latest-${latestId}-${field}`}>{resolveValue(latest, field)}</td>
+                          <td key={`latest-${latestId}-${field}`}>{resolveTableCellValue(latest, field)}</td>
                         ))}
                       </tr>
                     );
@@ -904,7 +1023,7 @@ function ModuleScreen({
                         <tr key={`history-${rowId}`} className="history-row">
                           <td />
                           {visibleFields.map((field) => (
-                            <td key={`history-${rowId}-${field}`}>{resolveValue(row, field)}</td>
+                            <td key={`history-${rowId}-${field}`}>{resolveTableCellValue(row, field)}</td>
                           ))}
                         </tr>
                       );
@@ -928,7 +1047,7 @@ function ModuleScreen({
                           </button>
                         </td>
                         {visibleFields.map((field) => (
-                          <td key={`${id}-${field}`}>{resolveValue(row, field)}</td>
+                          <td key={`${id}-${field}`}>{resolveTableCellValue(row, field)}</td>
                         ))}
                       </tr>
                     );
@@ -943,6 +1062,50 @@ function ModuleScreen({
             </table>
           )}
         </div>
+
+        {isEventModule && showEventDetails && selectedRecord && (
+          <section className="event-detail-card">
+            <div className="event-detail-card__head">
+              <h3>{selectedRecord.nombre || 'Evento sin nombre'}</h3>
+              <span>{selectedRecord.activo === false ? 'Desactivado' : 'Activo'}</span>
+            </div>
+
+            <div className="event-detail-grid">
+              <div>
+                <span>Fecha</span>
+                <strong>{formatEventDateValue(selectedRecord.fechaHora)}</strong>
+              </div>
+              <div>
+                <span>Hora</span>
+                <strong>{formatEventTimeValue(selectedRecord.fechaHora)}</strong>
+              </div>
+              <div>
+                <span>Lugar</span>
+                <strong>{selectedRecord.lugar || '-'}</strong>
+              </div>
+              <div>
+                <span>Participantes</span>
+                <strong>{Array.isArray(selectedRecord.participantes) ? selectedRecord.participantes.length : 0}</strong>
+              </div>
+            </div>
+
+            <div className="event-participants">
+              <strong>Lista de participantes</strong>
+              {Array.isArray(selectedRecord.participantes) && selectedRecord.participantes.length ? (
+                <div className="event-participants__list">
+                  {selectedRecord.participantes.map((participante) => (
+                    <div key={participante.userId} className="event-participant-item">
+                      <span>{[participante.nombre, participante.apellido].filter(Boolean).join(' ') || 'Sin nombre'}</span>
+                      <small>{participante.cedula || 'Sin cédula'} · {participante.correo || 'Sin correo'}</small>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <span className="plan-builder-empty">Este evento no tiene participantes registrados.</span>
+              )}
+            </div>
+          </section>
+        )}
       </article>
 
       {activeModule.canCreate && formMode !== 'closed' && (
@@ -1131,6 +1294,206 @@ function ModuleScreen({
               const options = getFieldOptions(activeModule, field, user, getOptionsForField);
               const optional = isOptionalField(field);
               const required = isCompositionModule ? field === 'peso' : !optional;
+
+              if (activeModule.key === 'evento' && field === 'fechaHora') {
+                const dateValue = createForm.fechaHoraFecha
+                  || (typeof createForm.fechaHora === 'string' && createForm.fechaHora.includes('T')
+                    ? createForm.fechaHora.slice(0, 10)
+                    : '');
+                const timeValue = createForm.fechaHoraHora
+                  || (typeof createForm.fechaHora === 'string' && createForm.fechaHora.includes('T')
+                    ? createForm.fechaHora.slice(11, 16)
+                    : '');
+
+                return (
+                  <div key={field} className="form-grid">
+                    <label>
+                      Fecha
+                      <input
+                        type="date"
+                        value={dateValue}
+                        onChange={(event) => {
+                          const nextDate = event.target.value;
+                          const nextTime = createForm.fechaHoraHora || timeValue || '';
+                          setCreateForm((current) => ({
+                            ...current,
+                            fechaHoraFecha: nextDate,
+                            fechaHoraHora: nextTime,
+                            fechaHora: nextDate && nextTime ? `${nextDate}T${nextTime}` : current.fechaHora,
+                          }));
+                        }}
+                        required
+                      />
+                    </label>
+                    <label>
+                      Hora
+                      <input
+                        type="time"
+                        value={timeValue}
+                        onChange={(event) => {
+                          const nextTime = event.target.value;
+                          const nextDate = createForm.fechaHoraFecha || dateValue || '';
+                          setCreateForm((current) => ({
+                            ...current,
+                            fechaHoraFecha: nextDate,
+                            fechaHoraHora: nextTime,
+                            fechaHora: nextDate && nextTime ? `${nextDate}T${nextTime}` : current.fechaHora,
+                          }));
+                        }}
+                        required
+                      />
+                    </label>
+                  </div>
+                );
+              }
+
+              if (activeModule.key === 'horario' && formMode === 'create' && (field === 'apertura' || field === 'cierre')) {
+                return null;
+              }
+
+              if (activeModule.key === 'horario' && formMode === 'create' && field === 'diasSemanales') {
+                const selectedDays = Array.isArray(createForm.diasSeleccionados) ? createForm.diasSeleccionados : [];
+                const horariosPorDia = createForm.horariosPorDia && typeof createForm.horariosPorDia === 'object'
+                  ? createForm.horariosPorDia
+                  : {};
+                const defaultApertura = createForm.apertura || '';
+                const defaultCierre = createForm.cierre || '';
+
+                return (
+                  <div key={field} className="form-grid">
+                    <label>
+                      Hora de apertura por defecto
+                      <input
+                        type="time"
+                        value={defaultApertura}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setCreateForm((current) => ({
+                            ...current,
+                            apertura: value,
+                          }));
+                        }}
+                        required
+                      />
+                    </label>
+
+                    <label>
+                      Hora de cierre por defecto
+                      <input
+                        type="time"
+                        value={defaultCierre}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setCreateForm((current) => ({
+                            ...current,
+                            cierre: value,
+                          }));
+                        }}
+                        required
+                      />
+                    </label>
+
+                    <div className="weekday-selector">
+                      <span>Dias de la semana</span>
+                      <div className="weekday-selector__grid">
+                        {WEEK_DAYS.map((day) => {
+                          const selected = selectedDays.includes(day);
+                          return (
+                            <button
+                              key={day}
+                              type="button"
+                              className={`weekday-chip ${selected ? 'active' : ''}`}
+                              onClick={() => {
+                                setCreateForm((current) => {
+                                  const currentSelected = Array.isArray(current.diasSeleccionados) ? current.diasSeleccionados : [];
+                                  const currentMap = current.horariosPorDia && typeof current.horariosPorDia === 'object'
+                                    ? current.horariosPorDia
+                                    : {};
+
+                                  if (currentSelected.includes(day)) {
+                                    const nextSelected = currentSelected.filter((item) => item !== day);
+                                    const nextMap = { ...currentMap };
+                                    delete nextMap[day];
+                                    return {
+                                      ...current,
+                                      diasSeleccionados: nextSelected,
+                                      horariosPorDia: nextMap,
+                                    };
+                                  }
+
+                                  return {
+                                    ...current,
+                                    diasSeleccionados: [...currentSelected, day],
+                                    horariosPorDia: {
+                                      ...currentMap,
+                                      [day]: {
+                                        apertura: currentMap[day]?.apertura || current.apertura || '',
+                                        cierre: currentMap[day]?.cierre || current.cierre || '',
+                                      },
+                                    },
+                                  };
+                                });
+                              }}
+                            >
+                              {day}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {selectedDays.length > 0 && (
+                      <div className="weekday-override-list">
+                        <strong>Variaciones por dia (opcional)</strong>
+                        {selectedDays.map((day) => {
+                          const dayConfig = horariosPorDia[day] || {};
+                          return (
+                            <div key={`override-${day}`} className="weekday-override-item">
+                              <span>{day}</span>
+                              <input
+                                type="time"
+                                value={dayConfig.apertura || defaultApertura}
+                                onChange={(event) => {
+                                  const value = event.target.value;
+                                  setCreateForm((current) => ({
+                                    ...current,
+                                    horariosPorDia: {
+                                      ...(current.horariosPorDia || {}),
+                                      [day]: {
+                                        ...(current.horariosPorDia?.[day] || {}),
+                                        apertura: value,
+                                        cierre: current.horariosPorDia?.[day]?.cierre || defaultCierre,
+                                      },
+                                    },
+                                  }));
+                                }}
+                              />
+                              <input
+                                type="time"
+                                value={dayConfig.cierre || defaultCierre}
+                                onChange={(event) => {
+                                  const value = event.target.value;
+                                  setCreateForm((current) => ({
+                                    ...current,
+                                    horariosPorDia: {
+                                      ...(current.horariosPorDia || {}),
+                                      [day]: {
+                                        ...(current.horariosPorDia?.[day] || {}),
+                                        apertura: current.horariosPorDia?.[day]?.apertura || defaultApertura,
+                                        cierre: value,
+                                      },
+                                    },
+                                  }));
+                                }}
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
 
               if (options.length) {
                 return (
