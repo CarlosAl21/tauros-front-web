@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getInputType, isOptionalField, resolveValue } from '../utils/form';
+import { apiRequest } from '../services/api';
 import MuscleSelector, { MUSCLE_GROUPS } from './MuscleSelector';
 import muscleBackground from '../utils/pictures/Musculos.jpg';
 
@@ -163,6 +164,8 @@ async function exportMuscleSvgToFile(svgElement) {
 
 function formatLabel(field) {
   const labels = {
+    tipo: 'Tipo',
+    actividad: 'Actividad',
     userId: 'ID usuario',
     cedula: 'Cedula',
     nombre: 'Nombre',
@@ -425,6 +428,7 @@ function ExerciseVideoPreview({ src, className = '', controls = false, autoPlay 
 }
 
 function ModuleScreen({
+  token,
   activeModule,
   user,
   usuariosCatalog,
@@ -449,6 +453,7 @@ function ModuleScreen({
   const isExerciseModule = activeModule.key === 'ejercicio';
   const isMachineModule = activeModule.key === 'maquina';
   const isEventModule = activeModule.key === 'evento';
+  const isSuggestionModule = activeModule.key === 'sugerencia';
   const isCategoryOrTypeModule = activeModule.key === 'categoria' || activeModule.key === 'tipo';
   const navigate = useNavigate();
   const muscleSvgRef = useRef(null);
@@ -464,7 +469,12 @@ function ModuleScreen({
   const [categoriaFilter, setCategoriaFilter] = useState('');
   const [tipoFilter, setTipoFilter] = useState('');
   const [showInactiveEvents, setShowInactiveEvents] = useState(false);
+  const [sugerenciaTipoFilter, setSugerenciaTipoFilter] = useState('');
   const [showEventDetails, setShowEventDetails] = useState(false);
+  const [showUserDetails, setShowUserDetails] = useState(false);
+  const [userDetailLoading, setUserDetailLoading] = useState(false);
+  const [userDetailError, setUserDetailError] = useState('');
+  const [userDetailData, setUserDetailData] = useState(null);
   const [selectedMuscles, setSelectedMuscles] = useState([]);
   const [videoProcessing, setVideoProcessing] = useState(false);
   const [musclePreviewUrl, setMusclePreviewUrl] = useState('');
@@ -567,14 +577,55 @@ function ModuleScreen({
     });
   }, [filteredRecords, isEventModule, showInactiveEvents]);
 
+  const suggestionFilteredRecords = useMemo(() => {
+    if (!isSuggestionModule) {
+      return filteredRecords;
+    }
+
+    if (!sugerenciaTipoFilter) {
+      return filteredRecords;
+    }
+
+    return filteredRecords.filter((record) => String(record?.tipo || '').toUpperCase() === sugerenciaTipoFilter);
+  }, [filteredRecords, isSuggestionModule, sugerenciaTipoFilter]);
+
   const rowsToRender = isExerciseModule
     ? exerciseFilteredRecords
-    : (isEventModule ? eventFilteredRecords : filteredRecords);
+    : (isEventModule ? eventFilteredRecords : (isSuggestionModule ? suggestionFilteredRecords : filteredRecords));
   const categoriaOptions = isExerciseModule ? getOptionsForField('categoriaId') : [];
   const tipoOptions = isExerciseModule ? getOptionsForField('tipoId') : [];
   const machineOptions = isExerciseModule ? getOptionsForField('maquinaId') : [];
 
   const visibleCount = isCompositionModule ? compositionGroups.length : rowsToRender.length;
+
+  const userRoutineGroups = useMemo(() => {
+    const rutinas = userDetailData?.rutinasAsignadas || [];
+    if (!Array.isArray(rutinas) || !rutinas.length) {
+      return [];
+    }
+
+    const grouped = new Map();
+
+    rutinas.forEach((rutina) => {
+      const planId = String(rutina?.planEntrenamientoId || 'sin-plan');
+      if (!grouped.has(planId)) {
+        grouped.set(planId, {
+          planId,
+          planNombre: rutina?.planNombre || 'Plan sin nombre',
+          dias: [],
+        });
+      }
+
+      grouped.get(planId).dias.push(rutina);
+    });
+
+    return Array.from(grouped.values()).map((plan) => ({
+      ...plan,
+      dias: plan.dias
+        .slice()
+        .sort((left, right) => Number(left?.numeroDia || 0) - Number(right?.numeroDia || 0)),
+    }));
+  }, [userDetailData]);
 
   const getColumnLabel = (field) => {
     if (field === 'fechaHoraFecha') {
@@ -630,6 +681,27 @@ function ModuleScreen({
   }, [isEventModule]);
 
   useEffect(() => {
+    if (!isUserModule) {
+      setShowUserDetails(false);
+      setUserDetailData(null);
+      setUserDetailError('');
+      setUserDetailLoading(false);
+      return;
+    }
+
+    setShowUserDetails(false);
+    setUserDetailData(null);
+    setUserDetailError('');
+    setUserDetailLoading(false);
+  }, [isUserModule, selectedId]);
+
+  useEffect(() => {
+    if (!isSuggestionModule) {
+      setSugerenciaTipoFilter('');
+    }
+  }, [isSuggestionModule]);
+
+  useEffect(() => {
     if (!isEventModule) {
       return;
     }
@@ -649,6 +721,31 @@ function ModuleScreen({
   }, [activeModule.idField, rowsToRender, selectedId, setSelectedId]);
 
   const machinePhotoLabel = createForm.linkFotoFile?.name || createForm.linkFoto || 'Sin archivo';
+
+  const toggleUserDetails = async () => {
+    if (showUserDetails) {
+      setShowUserDetails(false);
+      return;
+    }
+
+    const userId = selectedRecord?.userId;
+    if (!userId || !token) {
+      return;
+    }
+
+    try {
+      setUserDetailLoading(true);
+      setUserDetailError('');
+      const detailResponse = await apiRequest(`/usuario/${userId}/detalle`, token);
+      setUserDetailData(detailResponse || null);
+      setShowUserDetails(true);
+    } catch (error) {
+      setUserDetailError(error.message || 'No se pudo cargar el detalle del usuario');
+      setShowUserDetails(false);
+    } finally {
+      setUserDetailLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!isExerciseModule) {
@@ -747,6 +844,16 @@ function ModuleScreen({
               {showEventDetails ? 'Ocultar detalle' : 'Ver detalle'}
             </button>
           )}
+          {isUserModule && selectedRecord && (
+            <button
+              type="button"
+              className="btn-action"
+              onClick={toggleUserDetails}
+              disabled={userDetailLoading}
+            >
+              {userDetailLoading ? 'Cargando detalle...' : (showUserDetails ? 'Ocultar detalle' : 'Ver detalle')}
+            </button>
+          )}
           {isExerciseModule && (
             <>
               <label className="inline-filter">
@@ -769,6 +876,17 @@ function ModuleScreen({
                 </select>
               </label>
             </>
+          )}
+          {isSuggestionModule && (
+            <label className="inline-filter">
+              Tipo
+              <select value={sugerenciaTipoFilter} onChange={(event) => setSugerenciaTipoFilter(event.target.value)}>
+                <option value="">Todos</option>
+                <option value="EVENTO">EVENTO</option>
+                <option value="RUTINA">RUTINA</option>
+                <option value="EJERCICIO">EJERCICIO</option>
+              </select>
+            </label>
           )}
           {activeModule.canCreate && !selectedRecord && (
             <button
@@ -982,7 +1100,7 @@ function ModuleScreen({
             <table>
               <thead>
                 <tr>
-                  <th>SEL</th>
+                  {!isSuggestionModule && <th>SEL</th>}
                   {visibleFields.map((field) => (
                     <th key={field}>{getColumnLabel(field)}</th>
                   ))}
@@ -1036,16 +1154,18 @@ function ModuleScreen({
                     const isSelected = selectedId === String(id);
                     return (
                       <tr key={id} className={isSelected ? 'row-selected' : ''}>
-                        <td>
-                          <button
-                            type="button"
-                            className={`row-select ${isSelected ? 'selected' : ''}`}
-                            aria-pressed={isSelected}
-                            onClick={() => (isSelected ? closeForm() : setSelectedId(String(id)))}
-                          >
-                            {isSelected ? '●' : '○'}
-                          </button>
-                        </td>
+                        {!isSuggestionModule && (
+                          <td>
+                            <button
+                              type="button"
+                              className={`row-select ${isSelected ? 'selected' : ''}`}
+                              aria-pressed={isSelected}
+                              onClick={() => (isSelected ? closeForm() : setSelectedId(String(id)))}
+                            >
+                              {isSelected ? '●' : '○'}
+                            </button>
+                          </td>
+                        )}
                         {visibleFields.map((field) => (
                           <td key={`${id}-${field}`}>{resolveTableCellValue(row, field)}</td>
                         ))}
@@ -1055,7 +1175,7 @@ function ModuleScreen({
 
                 {!(isCompositionModule ? compositionGroups.length : rowsToRender.length) && (
                   <tr>
-                    <td colSpan={visibleFields.length + 1}>No hay registros para mostrar.</td>
+                    <td colSpan={visibleFields.length + (isSuggestionModule ? 0 : 1)}>No hay registros para mostrar.</td>
                   </tr>
                 )}
               </tbody>
@@ -1104,6 +1224,70 @@ function ModuleScreen({
                 <span className="plan-builder-empty">Este evento no tiene participantes registrados.</span>
               )}
             </div>
+          </section>
+        )}
+
+        {isUserModule && showUserDetails && selectedRecord && (
+          <section className="event-detail-card">
+            <div className="event-detail-card__head">
+              <h3>
+                Rutinas asignadas: {selectedRecord.nombre || ''} {selectedRecord.apellido || ''}
+              </h3>
+              <span>
+                {userRoutineGroups.length} planes
+              </span>
+            </div>
+
+            {userDetailError && <p className="status error">{userDetailError}</p>}
+
+            {!userDetailLoading && !userDetailError && (
+              <div className="plan-builder-list">
+                {userRoutineGroups.length ? (
+                  userRoutineGroups.map((plan, planIndex) => (
+                    <details key={plan.planId} className="user-routine-plan-card" open={planIndex === 0}>
+                      <summary className="user-routine-plan-card__summary">
+                        <strong>{plan.planNombre}</strong>
+                        <small className="user-routine-plan-card__meta">{plan.dias.length} dias configurados</small>
+                      </summary>
+
+                      <div className="user-routine-plan-card__content">
+                        {plan.dias.map((rutina) => (
+                          <details key={rutina.rutinaDiaId} className="user-routine-day-card">
+                            <summary className="user-routine-day-card__summary">
+                              Dia {rutina.numeroDia}: {rutina.nombre}
+                            </summary>
+                            <small className="user-routine-day-card__description">{rutina.descripcion || 'Sin descripcion'}</small>
+
+                            <div className="user-routine-exercise-list">
+                              {(rutina.ejercicios || []).length ? (
+                                rutina.ejercicios.map((ejercicio) => (
+                                  <article
+                                    key={ejercicio.rutinaEjercicioId || `${rutina.rutinaDiaId}-${ejercicio.ejercicioId || ejercicio.ejercicioNombre}`}
+                                    className="user-routine-exercise-card"
+                                  >
+                                    <strong>{ejercicio.ejercicioNombre || 'Ejercicio sin nombre'}</strong>
+                                    <span>
+                                      #{ejercicio.orden || '-'} · {ejercicio.series || '-'} series · {ejercicio.repeticiones || '-'} repeticiones
+                                    </span>
+                                    <small>
+                                      Carga: {ejercicio.carga || '-'} · Notas: {ejercicio.notasEspecificas || '-'}
+                                    </small>
+                                  </article>
+                                ))
+                              ) : (
+                                <span className="plan-builder-empty">Este dia no tiene ejercicios.</span>
+                              )}
+                            </div>
+                          </details>
+                        ))}
+                      </div>
+                    </details>
+                  ))
+                ) : (
+                  <span className="plan-builder-empty">Este usuario no tiene rutinas asignadas.</span>
+                )}
+              </div>
+            )}
           </section>
         )}
       </article>

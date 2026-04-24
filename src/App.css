@@ -980,6 +980,90 @@ a {
   gap: 0.35rem;
 }
 
+.user-routine-plan-card {
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045) 0%, rgba(255, 255, 255, 0.02) 100%);
+  overflow: hidden;
+}
+
+.user-routine-plan-card__summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 0.75rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.user-routine-plan-card__summary::-webkit-details-marker {
+  display: none;
+}
+
+.user-routine-plan-card__summary strong {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.user-routine-plan-card__meta {
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+
+.user-routine-plan-card__content {
+  padding: 0 0.75rem 0.75rem;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.user-routine-day-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.55rem 0.6rem;
+}
+
+.user-routine-day-card__summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.84rem;
+}
+
+.user-routine-day-card__description {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.user-routine-exercise-list {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 0.6rem;
+}
+
+.user-routine-exercise-card {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.5rem 0.55rem;
+  display: grid;
+  gap: 0.22rem;
+}
+
+.user-routine-exercise-card strong {
+  font-size: 0.82rem;
+}
+
+.user-routine-exercise-card span {
+  color: #ddd3cf;
+  font-size: 0.76rem;
+}
+
+.user-routine-exercise-card small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
 .event-participant-item {
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 10px;

@@ -153,11 +153,11 @@ export const MODULES = [
     subtitle: 'Sugerencias enviadas por usuarios',
     path: '/sugerencias',
     endpoint: '/sugerencia',
-    idField: 'sugerenciaId',
-    fields: ['sugerenciaId', 'tipoEntidad', 'contenido', 'entidadId'],
-    formFields: ['tipoEntidad', 'contenido', 'entidadId'],
-    canCreate: true,
-    canDelete: true,
+    idField: '__rowId',
+    fields: ['tipo', 'actividad', 'contenido'],
+    formFields: [],
+    canCreate: false,
+    canDelete: false,
   },
 ];
 

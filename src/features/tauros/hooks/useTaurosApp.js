@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MODULE_MAP } from '../config/modules';
 import { apiRequest } from '../services/api';
 import { buildFormFromRecord, buildInitialForm, normalizePayload } from '../utils/form';
@@ -10,6 +10,7 @@ const EMPTY_DASHBOARD = {
   planes: [],
   eventos: [],
   sugerencias: [],
+  composiciones: [],
 };
 
 const ALLOWED_ROLES = ['admin', 'coach'];
@@ -53,10 +54,12 @@ export function useTaurosApp() {
     ejercicios: [],
   });
   const [dashboardData, setDashboardData] = useState(EMPTY_DASHBOARD);
+  const moduleLoadTokenRef = useRef(0);
 
   const activeModule = MODULE_MAP[activeModuleKey];
 
   useEffect(() => {
+    setRecords([]);
     setCreateForm(buildInitialForm(activeModule));
     setSelectedId('');
     setFormMode('closed');
@@ -118,20 +121,27 @@ export function useTaurosApp() {
     }
 
     const loadModuleData = async () => {
+      const requestToken = ++moduleLoadTokenRef.current;
+
       try {
         setLoading(true);
         setError('');
         setModuleMessage('');
 
         if (activeModuleKey === 'dashboard') {
-          const [usuarios, ejercicios, maquinas, planes, eventos, sugerencias] = await Promise.all([
+          const [usuarios, ejercicios, maquinas, planes, eventos, sugerencias, composiciones] = await Promise.all([
             apiRequest('/usuario', token),
             apiRequest('/ejercicio', token),
             apiRequest('/maquina', token),
             apiRequest('/plan-entrenamiento', token),
             apiRequest('/evento', token),
             apiRequest('/sugerencia', token),
+            apiRequest('/composicion-corporal', token),
           ]);
+
+          if (requestToken !== moduleLoadTokenRef.current) {
+            return;
+          }
 
           setDashboardData({
             usuarios: Array.isArray(usuarios) ? usuarios : [],
@@ -140,12 +150,18 @@ export function useTaurosApp() {
             planes: Array.isArray(planes) ? planes : [],
             eventos: Array.isArray(eventos) ? eventos : [],
             sugerencias: Array.isArray(sugerencias) ? sugerencias : [],
+            composiciones: Array.isArray(composiciones) ? composiciones : [],
           });
           setRecords([]);
           return;
         }
 
         const response = await apiRequest(activeModule.endpoint, token);
+
+        if (requestToken !== moduleLoadTokenRef.current) {
+          return;
+        }
+
         if (Array.isArray(response)) {
           setRecords(response);
         } else {
@@ -153,9 +169,14 @@ export function useTaurosApp() {
           setModuleMessage(typeof response === 'string' ? response : JSON.stringify(response));
         }
       } catch (err) {
+        if (requestToken !== moduleLoadTokenRef.current) {
+          return;
+        }
         setError(err.message || 'No se pudo cargar la informacion del modulo');
       } finally {
-        setLoading(false);
+        if (requestToken === moduleLoadTokenRef.current) {
+          setLoading(false);
+        }
       }
     };
 
@@ -170,6 +191,101 @@ export function useTaurosApp() {
     { label: 'Eventos', value: dashboardData.eventos.length },
     { label: 'Sugerencias', value: dashboardData.sugerencias.length },
   ]), [dashboardData]);
+
+  const dashboardInsights = useMemo(() => {
+    const usuarios = Array.isArray(dashboardData.usuarios) ? dashboardData.usuarios : [];
+    const planes = Array.isArray(dashboardData.planes) ? dashboardData.planes : [];
+    const eventos = Array.isArray(dashboardData.eventos) ? dashboardData.eventos : [];
+    const sugerencias = Array.isArray(dashboardData.sugerencias) ? dashboardData.sugerencias : [];
+    const composiciones = Array.isArray(dashboardData.composiciones) ? dashboardData.composiciones : [];
+
+    const usuariosActivos = usuarios.filter((item) => item?.isActive !== false);
+    const planesAsignados = planes.filter((item) => item?.esPlantilla === false && item?.usuario?.userId);
+    const usuariosConPlan = new Set(planesAsignados.map((item) => String(item?.usuario?.userId || '')));
+    const coberturaPlanes = usuariosActivos.length
+      ? Math.round((usuariosConPlan.size / usuariosActivos.length) * 100)
+      : 0;
+
+    const ahora = new Date();
+    const eventosProximos = eventos.filter((item) => {
+      const fecha = new Date(item?.fechaHora);
+      return !Number.isNaN(fecha.getTime()) && fecha >= ahora;
+    }).length;
+
+    const composicionesPorUsuario = new Map();
+    composiciones.forEach((registro) => {
+      const userId = registro?.usuario?.userId || registro?.usuarioId;
+      if (!userId) {
+        return;
+      }
+
+      const key = String(userId);
+      if (!composicionesPorUsuario.has(key)) {
+        composicionesPorUsuario.set(key, []);
+      }
+      composicionesPorUsuario.get(key).push(registro);
+    });
+
+    let usuariosConMejora = 0;
+    let usuariosSinCambio = 0;
+
+    composicionesPorUsuario.forEach((registros) => {
+      const sorted = registros.slice().sort((a, b) => {
+        const aDate = new Date(a?.fechaRegistro || 0).getTime();
+        const bDate = new Date(b?.fechaRegistro || 0).getTime();
+        return bDate - aDate;
+      });
+
+      if (sorted.length < 2) {
+        return;
+      }
+
+      const reciente = sorted[0];
+      const anterior = sorted[1];
+
+      const grasaReciente = Number(reciente?.grasaCorporal ?? NaN);
+      const grasaAnterior = Number(anterior?.grasaCorporal ?? NaN);
+      const pesoReciente = Number(reciente?.peso ?? NaN);
+      const pesoAnterior = Number(anterior?.peso ?? NaN);
+
+      const mejoraGrasa = Number.isFinite(grasaReciente) && Number.isFinite(grasaAnterior) && grasaReciente < grasaAnterior;
+      const mejoraPeso = Number.isFinite(pesoReciente) && Number.isFinite(pesoAnterior) && pesoReciente < pesoAnterior;
+
+      if (mejoraGrasa || mejoraPeso) {
+        usuariosConMejora += 1;
+      } else {
+        usuariosSinCambio += 1;
+      }
+    });
+
+    const usuariosConRegistro = composicionesPorUsuario.size;
+    const usuariosSinRegistro = Math.max(usuariosActivos.length - usuariosConRegistro, 0);
+
+    const oportunidades = [];
+    if (coberturaPlanes < 70) {
+      oportunidades.push(`Asignar más planes: cobertura actual ${coberturaPlanes}% de usuarios activos.`);
+    }
+    if (usuariosSinRegistro > 0) {
+      oportunidades.push(`${usuariosSinRegistro} usuarios activos no tienen mediciones de composición corporal.`);
+    }
+    if (eventosProximos === 0) {
+      oportunidades.push('No hay eventos próximos; conviene programar actividades para retención.');
+    }
+    if (sugerencias.length > 0) {
+      oportunidades.push(`Hay ${sugerencias.length} sugerencias pendientes por revisar en el panel.`);
+    }
+
+    return {
+      resumen: {
+        usuariosActivos: usuariosActivos.length,
+        coberturaPlanes,
+        eventosProximos,
+        usuariosConMejora,
+        usuariosSinCambio,
+      },
+      oportunidades,
+    };
+  }, [dashboardData]);
 
   const filteredRecords = useMemo(() => {
     if (!searchTerm.trim()) {
@@ -219,9 +335,16 @@ export function useTaurosApp() {
       return;
     }
 
+    const requestToken = ++moduleLoadTokenRef.current;
+
     try {
       setLoading(true);
       const response = await apiRequest(activeModule.endpoint, token);
+
+      if (requestToken !== moduleLoadTokenRef.current) {
+        return;
+      }
+
       if (Array.isArray(response)) {
         setRecords(response);
       } else {
@@ -229,9 +352,14 @@ export function useTaurosApp() {
         setModuleMessage(typeof response === 'string' ? response : JSON.stringify(response));
       }
     } catch (err) {
+      if (requestToken !== moduleLoadTokenRef.current) {
+        return;
+      }
       setError(err.message || 'No se pudo recargar el modulo');
     } finally {
-      setLoading(false);
+      if (requestToken === moduleLoadTokenRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -572,6 +700,7 @@ export function useTaurosApp() {
     filteredRecords,
     loading,
     metrics,
+    dashboardInsights,
     moduleMessage,
     records,
     searchTerm,

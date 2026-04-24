@@ -104,6 +104,8 @@ function ModulePage({
         />
       ) : (
         <ModuleScreen
+          key={activeModule.key}
+          token={token}
           activeModule={activeModule}
           user={user}
           usuariosCatalog={usuariosCatalog}
