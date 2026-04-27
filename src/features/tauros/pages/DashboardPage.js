@@ -12,6 +12,7 @@ function DashboardPage({
   onLogout,
   metrics,
   dashboardData,
+  dashboardInsights,
   error,
   success,
 }) {
@@ -32,7 +33,7 @@ function DashboardPage({
     >
       {error && <p className="status error">{error}</p>}
       {success && <p className="status success">{success}</p>}
-      <DashboardScreen metrics={metrics} dashboardData={dashboardData} />
+      <DashboardScreen metrics={metrics} dashboardData={dashboardData} insights={dashboardInsights} />
     </MainLayout>
   );
 }

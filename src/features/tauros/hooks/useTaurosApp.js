@@ -11,6 +11,7 @@ const EMPTY_DASHBOARD = {
   eventos: [],
   sugerencias: [],
   composiciones: [],
+  ejerciciosEstad: null,
 };
 
 const ALLOWED_ROLES = ['admin', 'coach'];
@@ -129,7 +130,7 @@ export function useTaurosApp() {
         setModuleMessage('');
 
         if (activeModuleKey === 'dashboard') {
-          const [usuarios, ejercicios, maquinas, planes, eventos, sugerencias, composiciones] = await Promise.all([
+          const [usuarios, ejercicios, maquinas, planes, eventos, sugerencias, composiciones, ejerciciosEstad] = await Promise.all([
             apiRequest('/usuario', token),
             apiRequest('/ejercicio', token),
             apiRequest('/maquina', token),
@@ -137,6 +138,7 @@ export function useTaurosApp() {
             apiRequest('/evento', token),
             apiRequest('/sugerencia', token),
             apiRequest('/composicion-corporal', token),
+            apiRequest('/plan-entrenamiento/estadisticas/ejercicios', token),
           ]);
 
           if (requestToken !== moduleLoadTokenRef.current) {
@@ -151,6 +153,7 @@ export function useTaurosApp() {
             eventos: Array.isArray(eventos) ? eventos : [],
             sugerencias: Array.isArray(sugerencias) ? sugerencias : [],
             composiciones: Array.isArray(composiciones) ? composiciones : [],
+            ejerciciosEstad: ejerciciosEstad || null,
           });
           setRecords([]);
           return;
@@ -187,7 +190,7 @@ export function useTaurosApp() {
     { label: 'Usuarios', value: dashboardData.usuarios.length },
     { label: 'Ejercicios', value: dashboardData.ejercicios.length },
     { label: 'Maquinas', value: dashboardData.maquinas.length },
-    { label: 'Planes', value: dashboardData.planes.length },
+    { label: 'Planes', value: (Array.isArray(dashboardData.planes) ? dashboardData.planes.filter(p => p?.esPlantilla === true).length : 0) },
     { label: 'Eventos', value: dashboardData.eventos.length },
     { label: 'Sugerencias', value: dashboardData.sugerencias.length },
   ]), [dashboardData]);
@@ -284,6 +287,12 @@ export function useTaurosApp() {
         usuariosSinCambio,
       },
       oportunidades,
+      ejerciciosPopulares: dashboardData.ejerciciosEstad ? {
+        ejercicios: dashboardData.ejerciciosEstad.ejerciciosMasComunes || [],
+        categorias: dashboardData.ejerciciosEstad.categoriasPopulares || [],
+        tipos: dashboardData.ejerciciosEstad.tiposPopulares || [],
+        estadisticas: dashboardData.ejerciciosEstad.estadisticasCompletadas || {},
+      } : null,
     };
   }, [dashboardData]);
 

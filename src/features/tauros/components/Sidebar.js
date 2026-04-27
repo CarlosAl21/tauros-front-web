@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import Logo from './Logo';
 
 function Sidebar({ modules, onLogout }) {
   const visibleModules = modules.filter(
@@ -10,7 +11,7 @@ function Sidebar({ modules, onLogout }) {
 
   return (
     <aside className="sidebar">
-      <div className="sidebar-brand">Tauros</div>
+      <Logo size="medium" className="sidebar-logo" />
       <nav>
         {visibleModules.map((module) => (
           <NavLink

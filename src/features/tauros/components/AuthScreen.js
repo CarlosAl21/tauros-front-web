@@ -1,8 +1,10 @@
+import Logo from './Logo';
+
 function AuthScreen({ authForm, setAuthForm, onSubmit, error, success }) {
   return (
     <div className="auth-shell">
       <div className="auth-card">
-        <h1 className="brand-title">Tauros</h1>
+        <Logo size="large" className="auth-logo" />
         <p className="brand-subtitle">Acceso restringido para administracion del sistema</p>
 
         <form className="form-grid" onSubmit={onSubmit}>

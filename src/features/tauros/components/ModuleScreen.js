@@ -475,6 +475,8 @@ function ModuleScreen({
   const [userDetailLoading, setUserDetailLoading] = useState(false);
   const [userDetailError, setUserDetailError] = useState('');
   const [userDetailData, setUserDetailData] = useState(null);
+  const [userStatsData, setUserStatsData] = useState(null);
+  const [userDetailTab, setUserDetailTab] = useState('rutinas');
   const [selectedMuscles, setSelectedMuscles] = useState([]);
   const [videoProcessing, setVideoProcessing] = useState(false);
   const [musclePreviewUrl, setMusclePreviewUrl] = useState('');
@@ -725,6 +727,7 @@ function ModuleScreen({
   const toggleUserDetails = async () => {
     if (showUserDetails) {
       setShowUserDetails(false);
+      setUserDetailTab('rutinas');
       return;
     }
 
@@ -736,14 +739,52 @@ function ModuleScreen({
     try {
       setUserDetailLoading(true);
       setUserDetailError('');
-      const detailResponse = await apiRequest(`/usuario/${userId}/detalle`, token);
+      const [detailResponse, statsResponse] = await Promise.all([
+        apiRequest(`/usuario/${userId}/detalle`, token),
+        apiRequest(`/usuario/${userId}/estadisticas`, token),
+      ]);
       setUserDetailData(detailResponse || null);
+      setUserStatsData(statsResponse || null);
+      setUserDetailTab('rutinas');
       setShowUserDetails(true);
     } catch (error) {
       setUserDetailError(error.message || 'No se pudo cargar el detalle del usuario');
       setShowUserDetails(false);
     } finally {
       setUserDetailLoading(false);
+    }
+  };
+
+  const marcarEjercicioCompletado = async (rutinaEjercicioId) => {
+    if (!token) {
+      return;
+    }
+
+    try {
+      const response = await apiRequest(`/rutina-ejercicio/${rutinaEjercicioId}/completada`, token, 'PATCH');
+      
+      // Actualizar el estado local
+      setUserDetailData((prevData) => {
+        if (!prevData) return prevData;
+        
+        const newData = { ...prevData };
+        const rutinasAsignadas = newData.rutinasAsignadas || [];
+        
+        rutinasAsignadas.forEach((rutina) => {
+          if (rutina.ejercicios) {
+            rutina.ejercicios.forEach((ejercicio) => {
+              if (ejercicio.rutinaEjercicioId === rutinaEjercicioId) {
+                ejercicio.completada = response.completada;
+                ejercicio.fechaCompletada = response.fechaCompletada;
+              }
+            });
+          }
+        });
+        
+        return newData;
+      });
+    } catch (error) {
+      setUserDetailError(error.message || 'No se pudo actualizar el ejercicio');
     }
   };
 
@@ -1231,62 +1272,166 @@ function ModuleScreen({
           <section className="event-detail-card">
             <div className="event-detail-card__head">
               <h3>
-                Rutinas asignadas: {selectedRecord.nombre || ''} {selectedRecord.apellido || ''}
+                Detalles: {selectedRecord.nombre || ''} {selectedRecord.apellido || ''}
               </h3>
               <span>
                 {userRoutineGroups.length} planes
               </span>
             </div>
 
+            <div className="user-detail-tabs">
+              <button
+                className={`tab-button ${userDetailTab === 'rutinas' ? 'active' : ''}`}
+                onClick={() => setUserDetailTab('rutinas')}
+              >
+                Rutinas
+              </button>
+              <button
+                className={`tab-button ${userDetailTab === 'analisis' ? 'active' : ''}`}
+                onClick={() => setUserDetailTab('analisis')}
+              >
+                Análisis
+              </button>
+            </div>
+
             {userDetailError && <p className="status error">{userDetailError}</p>}
 
-            {!userDetailLoading && !userDetailError && (
-              <div className="plan-builder-list">
-                {userRoutineGroups.length ? (
-                  userRoutineGroups.map((plan, planIndex) => (
-                    <details key={plan.planId} className="user-routine-plan-card" open={planIndex === 0}>
-                      <summary className="user-routine-plan-card__summary">
-                        <strong>{plan.planNombre}</strong>
-                        <small className="user-routine-plan-card__meta">{plan.dias.length} dias configurados</small>
-                      </summary>
+            {userDetailTab === 'rutinas' && (
+              <>
+                {!userDetailLoading && !userDetailError && (
+                  <div className="plan-builder-list">
+                    {userRoutineGroups.length ? (
+                      userRoutineGroups.map((plan, planIndex) => (
+                        <details key={plan.planId} className="user-routine-plan-card" open={planIndex === 0}>
+                          <summary className="user-routine-plan-card__summary">
+                            <strong>{plan.planNombre}</strong>
+                            <small className="user-routine-plan-card__meta">{plan.dias.length} dias configurados</small>
+                          </summary>
 
-                      <div className="user-routine-plan-card__content">
-                        {plan.dias.map((rutina) => (
-                          <details key={rutina.rutinaDiaId} className="user-routine-day-card">
-                            <summary className="user-routine-day-card__summary">
-                              Dia {rutina.numeroDia}: {rutina.nombre}
-                            </summary>
-                            <small className="user-routine-day-card__description">{rutina.descripcion || 'Sin descripcion'}</small>
+                          <div className="user-routine-plan-card__content">
+                            {plan.dias.map((rutina) => (
+                              <details key={rutina.rutinaDiaId} className="user-routine-day-card">
+                                <summary className="user-routine-day-card__summary">
+                                  Dia {rutina.numeroDia}: {rutina.nombre}
+                                </summary>
+                                <small className="user-routine-day-card__description">{rutina.descripcion || 'Sin descripcion'}</small>
 
-                            <div className="user-routine-exercise-list">
-                              {(rutina.ejercicios || []).length ? (
-                                rutina.ejercicios.map((ejercicio) => (
-                                  <article
-                                    key={ejercicio.rutinaEjercicioId || `${rutina.rutinaDiaId}-${ejercicio.ejercicioId || ejercicio.ejercicioNombre}`}
-                                    className="user-routine-exercise-card"
-                                  >
-                                    <strong>{ejercicio.ejercicioNombre || 'Ejercicio sin nombre'}</strong>
-                                    <span>
-                                      #{ejercicio.orden || '-'} · {ejercicio.series || '-'} series · {ejercicio.repeticiones || '-'} repeticiones
-                                    </span>
-                                    <small>
-                                      Carga: {ejercicio.carga || '-'} · Notas: {ejercicio.notasEspecificas || '-'}
-                                    </small>
-                                  </article>
-                                ))
-                              ) : (
-                                <span className="plan-builder-empty">Este dia no tiene ejercicios.</span>
-                              )}
-                            </div>
-                          </details>
-                        ))}
-                      </div>
-                    </details>
-                  ))
-                ) : (
-                  <span className="plan-builder-empty">Este usuario no tiene rutinas asignadas.</span>
+                                <div className="user-routine-exercise-list">
+                                  {(rutina.ejercicios || []).length ? (
+                                    rutina.ejercicios.map((ejercicio) => (
+                                      <article
+                                        key={ejercicio.rutinaEjercicioId || `${rutina.rutinaDiaId}-${ejercicio.ejercicioId || ejercicio.ejercicioNombre}`}
+                                        className={`user-routine-exercise-card ${ejercicio.completada ? 'completada' : ''}`}
+                                      >
+                                        <div className="exercise-header">
+                                          <div className="exercise-info">
+                                            <strong>{ejercicio.ejercicioNombre || 'Ejercicio sin nombre'}</strong>
+                                            <span>
+                                              #{ejercicio.orden || '-'} · {ejercicio.series || '-'} series · {ejercicio.repeticiones || '-'} repeticiones
+                                            </span>
+                                            <small>
+                                              Carga: {ejercicio.carga || '-'} · Notas: {ejercicio.notasEspecificas || '-'}
+                                            </small>
+                                          </div>
+                                          <button
+                                            className={`exercise-toggle-btn ${ejercicio.completada ? 'active' : ''}`}
+                                            onClick={() => marcarEjercicioCompletado(ejercicio.rutinaEjercicioId)}
+                                            title={ejercicio.completada ? 'Marcar como no completada' : 'Marcar como completada'}
+                                          >
+                                            {ejercicio.completada ? '✓' : '○'}
+                                          </button>
+                                        </div>
+                                      </article>
+                                    ))
+                                  ) : (
+                                    <span className="plan-builder-empty">Este dia no tiene ejercicios.</span>
+                                  )}
+                                </div>
+                              </details>
+                            ))}
+                          </div>
+                        </details>
+                      ))
+                    ) : (
+                      <span className="plan-builder-empty">Este usuario no tiene rutinas asignadas.</span>
+                    )}
+                  </div>
                 )}
-              </div>
+              </>
+            )}
+
+            {userDetailTab === 'analisis' && (
+              <>
+                {!userDetailLoading && userStatsData && (
+                  <div className="user-analysis-container">
+                    <div className="analysis-section">
+                      <h4>Resumen</h4>
+                      <div className="analysis-grid">
+                        <div className="analysis-card">
+                          <span className="label">Planes Activos</span>
+                          <strong className="value">{userStatsData.planesActivos || 0}</strong>
+                        </div>
+                        <div className="analysis-card">
+                          <span className="label">Total Ejercicios</span>
+                          <strong className="value">{userStatsData.estadisticas?.total || 0}</strong>
+                        </div>
+                        <div className="analysis-card">
+                          <span className="label">Completadas</span>
+                          <strong className="value success">{userStatsData.estadisticas?.completadas || 0}</strong>
+                        </div>
+                        <div className="analysis-card">
+                          <span className="label">Pendientes</span>
+                          <strong className="value">{userStatsData.estadisticas?.pendientes || 0}</strong>
+                        </div>
+                        <div className="analysis-card">
+                          <span className="label">% Completado</span>
+                          <strong className="value">{userStatsData.estadisticas?.porcentaje || 0}%</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="analysis-section">
+                      <h4>Ejercicios Más Frecuentes</h4>
+                      <div className="analysis-list">
+                        {Array.isArray(userStatsData.ejerciciosFrequencia) && userStatsData.ejerciciosFrequencia.length > 0 ? (
+                          userStatsData.ejerciciosFrequencia.map((ej, idx) => (
+                            <div key={idx} className="analysis-row">
+                              <span className="rank">#{idx + 1}</span>
+                              <span className="name">{ej.nombre}</span>
+                              <span className="stats">
+                                {ej.cantidad}x · {ej.completadas}/{ej.cantidad}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="empty-message">Sin datos</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="analysis-section">
+                      <h4>Categorías Favoritas</h4>
+                      <div className="analysis-list">
+                        {Array.isArray(userStatsData.categoriasFavoritas) && userStatsData.categoriasFavoritas.length > 0 ? (
+                          userStatsData.categoriasFavoritas.map((cat, idx) => (
+                            <div key={idx} className="analysis-row">
+                              <span className="rank">#{idx + 1}</span>
+                              <span className="name">{cat.nombre}</span>
+                              <span className="stats">{cat.cantidad}x</span>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="empty-message">Sin datos</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {!userDetailLoading && !userStatsData && (
+                  <p className="empty-message">No hay datos de análisis disponibles</p>
+                )}
+              </>
             )}
           </section>
         )}

@@ -83,6 +83,7 @@ function App() {
                 onLogout={app.handleLogout}
                 metrics={app.metrics}
                 dashboardData={app.dashboardData}
+                dashboardInsights={app.dashboardInsights}
                 error={app.error}
                 success={app.success}
               />
