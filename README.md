@@ -102,3 +102,38 @@ Rutas principales:
 ```bash
 npm run build
 ```
+
+## Despliegue en Render
+
+El proyecto incluye un servidor Express (`server.js`) que maneja correctamente el routing de la SPA (Single Page Application).
+
+### Proceso de despliegue:
+
+1. **npm install** - Instala todas las dependencias (incluyendo Express)
+2. **npm run build** - Compila React en la carpeta `build/`
+3. **npm start** - Ejecuta `server.js` que sirve los archivos compilados
+
+### Configuración del servidor:
+
+El archivo `server.js`:
+- Sirve archivos estáticos desde `build/`
+- Implementa SPA fallback: todas las rutas desconocidas se redirigen a `index.html`
+- Esto permite que React Router maneje el enrutamiento en el cliente
+- Implementa caché inteligente para archivos versionados
+
+### Variables en Render:
+
+Asegúrate de configurar en Render:
+
+```
+REACT_APP_API_URL=https://tu-backend.onrender.com
+```
+
+### Desarrollo local:
+
+Para desarrollo usa:
+```bash
+npm run start:dev
+```
+
+Esto ejecutará React en modo desarrollo en `http://localhost:3000` con hot reload.

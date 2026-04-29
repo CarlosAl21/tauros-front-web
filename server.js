@@ -1,0 +1,53 @@
+const express = require('express');
+const path = require('path');
+const fs = require('fs');
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+const buildPath = path.join(__dirname, 'build');
+
+// Verificar que la carpeta build existe
+if (!fs.existsSync(buildPath)) {
+  console.error('ERROR: La carpeta "build" no existe. Ejecuta "npm run build" primero.');
+  process.exit(1);
+}
+
+// Servir archivos estáticos desde la carpeta build
+// Esto incluye CSS, JS, imágenes, favicon, manifest, etc.
+app.use(express.static(buildPath, {
+  maxAge: '1y', // Cache agresivo para archivos versionados
+  etag: false   // Deshabilitar etag para reducir headers
+}));
+
+// Middleware para caché de archivos versionados
+app.use((req, res, next) => {
+  // Los archivos con hash en el nombre se cachean indefinidamente
+  if (/\.\w+\.(js|css)$/.test(req.path)) {
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  }
+  next();
+});
+
+// SPA fallback: para cualquier ruta que no sea un archivo estático, servir index.html
+// Esto permite que React Router maneje el enrutamiento en el cliente
+app.get('*', (req, res) => {
+  const indexPath = path.join(buildPath, 'index.html');
+  
+  // Verificar que index.html existe antes de intentar servirlo
+  if (!fs.existsSync(indexPath)) {
+    return res.status(500).send('Error: index.html no encontrado');
+  }
+  
+  res.sendFile(indexPath);
+});
+
+// Manejo de errores
+app.use((err, req, res, next) => {
+  console.error('Error:', err);
+  res.status(500).send('Error interno del servidor');
+});
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`✓ Servidor ejecutándose en http://0.0.0.0:${PORT}`);
+  console.log(`✓ SPA routing habilitado - React Router manejará todas las rutas`);
+});
