@@ -470,6 +470,7 @@ function ModuleScreen({
   const [tipoFilter, setTipoFilter] = useState('');
   const [showInactiveEvents, setShowInactiveEvents] = useState(false);
   const [sugerenciaTipoFilter, setSugerenciaTipoFilter] = useState('');
+  const [showSolvedSuggestions, setShowSolvedSuggestions] = useState(false);
   const [showEventDetails, setShowEventDetails] = useState(false);
   const [showUserDetails, setShowUserDetails] = useState(false);
   const [userDetailLoading, setUserDetailLoading] = useState(false);
@@ -584,12 +585,13 @@ function ModuleScreen({
       return filteredRecords;
     }
 
-    if (!sugerenciaTipoFilter) {
-      return filteredRecords;
-    }
-
-    return filteredRecords.filter((record) => String(record?.tipo || '').toUpperCase() === sugerenciaTipoFilter);
-  }, [filteredRecords, isSuggestionModule, sugerenciaTipoFilter]);
+    return filteredRecords.filter((record) => {
+      const matchesTipo = !sugerenciaTipoFilter || String(record?.tipo || '').toUpperCase() === sugerenciaTipoFilter;
+      const isSolved = Boolean(record?.solucionada);
+      const matchesEstado = showSolvedSuggestions ? isSolved : !isSolved;
+      return matchesTipo && matchesEstado;
+    });
+  }, [filteredRecords, isSuggestionModule, showSolvedSuggestions, sugerenciaTipoFilter]);
 
   const rowsToRender = isExerciseModule
     ? exerciseFilteredRecords
@@ -700,6 +702,7 @@ function ModuleScreen({
   useEffect(() => {
     if (!isSuggestionModule) {
       setSugerenciaTipoFilter('');
+      setShowSolvedSuggestions(false);
     }
   }, [isSuggestionModule]);
 
@@ -785,6 +788,24 @@ function ModuleScreen({
       });
     } catch (error) {
       setUserDetailError(error.message || 'No se pudo actualizar el ejercicio');
+    }
+  };
+
+  const toggleSuggestionStatus = async () => {
+    if (!token || !selectedRecord?.sugerenciaId) {
+      return;
+    }
+
+    try {
+      await apiRequest(`/sugerencia/${selectedRecord.sugerenciaId}/estado`, token, {
+        method: 'PATCH',
+        body: JSON.stringify({ solucionada: !Boolean(selectedRecord?.solucionada) }),
+      });
+
+      await reloadModule();
+      setSelectedId('');
+    } catch (error) {
+      setUserDetailError(error.message || 'No se pudo cambiar el estado de la sugerencia');
     }
   };
 
@@ -919,6 +940,15 @@ function ModuleScreen({
             </>
           )}
           {isSuggestionModule && (
+            <button
+              type="button"
+              className="btn-action"
+              onClick={() => setShowSolvedSuggestions((current) => !current)}
+            >
+              {showSolvedSuggestions ? 'Ver no solucionadas' : 'Ver solucionadas'}
+            </button>
+          )}
+          {isSuggestionModule && (
             <label className="inline-filter">
               Tipo
               <select value={sugerenciaTipoFilter} onChange={(event) => setSugerenciaTipoFilter(event.target.value)}>
@@ -928,6 +958,15 @@ function ModuleScreen({
                 <option value="EJERCICIO">EJERCICIO</option>
               </select>
             </label>
+          )}
+          {isSuggestionModule && selectedRecord && (
+            <button
+              type="button"
+              className="btn-action"
+              onClick={toggleSuggestionStatus}
+            >
+              {selectedRecord.solucionada ? 'Marcar no solucionada' : 'Marcar solucionada'}
+            </button>
           )}
           {activeModule.canCreate && !selectedRecord && (
             <button
@@ -1141,7 +1180,7 @@ function ModuleScreen({
             <table>
               <thead>
                 <tr>
-                  {!isSuggestionModule && <th>SEL</th>}
+                  <th>SEL</th>
                   {visibleFields.map((field) => (
                     <th key={field}>{getColumnLabel(field)}</th>
                   ))}
@@ -1195,18 +1234,16 @@ function ModuleScreen({
                     const isSelected = selectedId === String(id);
                     return (
                       <tr key={id} className={isSelected ? 'row-selected' : ''}>
-                        {!isSuggestionModule && (
-                          <td>
-                            <button
-                              type="button"
-                              className={`row-select ${isSelected ? 'selected' : ''}`}
-                              aria-pressed={isSelected}
-                              onClick={() => (isSelected ? closeForm() : setSelectedId(String(id)))}
-                            >
-                              {isSelected ? '●' : '○'}
-                            </button>
-                          </td>
-                        )}
+                        <td>
+                          <button
+                            type="button"
+                            className={`row-select ${isSelected ? 'selected' : ''}`}
+                            aria-pressed={isSelected}
+                            onClick={() => (isSelected ? closeForm() : setSelectedId(String(id)))}
+                          >
+                            {isSelected ? '●' : '○'}
+                          </button>
+                        </td>
                         {visibleFields.map((field) => (
                           <td key={`${id}-${field}`}>{resolveTableCellValue(row, field)}</td>
                         ))}
@@ -1216,7 +1253,7 @@ function ModuleScreen({
 
                 {!(isCompositionModule ? compositionGroups.length : rowsToRender.length) && (
                   <tr>
-                    <td colSpan={visibleFields.length + (isSuggestionModule ? 0 : 1)}>No hay registros para mostrar.</td>
+                    <td colSpan={visibleFields.length + 1}>No hay registros para mostrar.</td>
                   </tr>
                 )}
               </tbody>

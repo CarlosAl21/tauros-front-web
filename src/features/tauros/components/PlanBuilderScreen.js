@@ -139,6 +139,7 @@ function buildDraftsForDays(days, rutinaEjercicios, exercisesById, fallbackSerie
 
     accumulator[String(day.rutinaDiaId)] = {
       descripcion: day.descripcion || `Dia ${day.numeroDia}`,
+      descansoSegundos: String(day.descansoSegundos ?? 60),
       exercises: ejercicios,
     };
 
@@ -153,6 +154,7 @@ function buildDraftForDay(day, rutinaEjercicios, exercisesById, fallbackSeries, 
 
   return {
     descripcion: day?.descripcion || `Dia ${day?.numeroDia || ''}`,
+    descansoSegundos: String(day?.descansoSegundos ?? 60),
     exercises: sourceExercises,
   };
 }
@@ -177,6 +179,7 @@ function PlanBuilderScreen({
   const [dayDrafts, setDayDrafts] = useState({});
   const [draftSeedPlanId, setDraftSeedPlanId] = useState('');
   const [dayDescription, setDayDescription] = useState('');
+  const [dayRestSeconds, setDayRestSeconds] = useState('60');
   const [exerciseSearch, setExerciseSearch] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [selectedTypeId, setSelectedTypeId] = useState('');
@@ -391,6 +394,7 @@ function PlanBuilderScreen({
       setSelectedRutinaDiaId(String(firstDay.rutinaDiaId));
       const firstDraft = initialDrafts[String(firstDay.rutinaDiaId)];
       setDayDescription(firstDraft?.descripcion || firstDay.descripcion || `Dia ${firstDay.numeroDia}`);
+      setDayRestSeconds(String(firstDraft?.descansoSegundos || firstDay.descansoSegundos || 60));
       setSelectedExerciseDrafts(firstDraft?.exercises || []);
     }
   }, [
@@ -420,6 +424,7 @@ function PlanBuilderScreen({
     );
 
     setDayDescription(draft.descripcion || selectedRutinaDia.descripcion || `Dia ${selectedRutinaDia.numeroDia}`);
+    setDayRestSeconds(String(draft.descansoSegundos || selectedRutinaDia.descansoSegundos || 60));
     setSelectedExerciseDrafts(draft.exercises || []);
   }, [
     creationPhase,
@@ -443,6 +448,7 @@ function PlanBuilderScreen({
     setSelectedExerciseDrafts([]);
     setDayDrafts({});
     setDraftSeedPlanId('');
+    setDayRestSeconds('60');
     setPlanForm({ nombre: '', descripcion: '', duracionDias: '', objetivo: '' });
   };
 
@@ -456,12 +462,18 @@ function PlanBuilderScreen({
     setDayDrafts({});
     setDraftSeedPlanId('');
     setDayDescription('');
+    setDayRestSeconds('60');
     setExerciseSearch('');
     setSelectedCategoryId('');
     setSelectedTypeId('');
   };
 
-  const persistCurrentDayDraft = (dayId = selectedRutinaDiaId, description = dayDescription, exercises = selectedExerciseDrafts) => {
+  const persistCurrentDayDraft = (
+    dayId = selectedRutinaDiaId,
+    description = dayDescription,
+    descansoSegundos = dayRestSeconds,
+    exercises = selectedExerciseDrafts,
+  ) => {
     if (!dayId) {
       return;
     }
@@ -474,6 +486,7 @@ function PlanBuilderScreen({
       ...current,
       [String(dayId)]: {
         descripcion: description,
+        descansoSegundos: String(descansoSegundos || '60'),
         exercises: normalizedExercises,
       },
     }));
@@ -484,6 +497,7 @@ function PlanBuilderScreen({
     if (selectedRutinaDiaId) {
       snapshot[String(selectedRutinaDiaId)] = {
         descripcion: dayDescription,
+        descansoSegundos: String(dayRestSeconds || '60'),
         exercises: selectedExerciseDrafts,
       };
     }
@@ -515,6 +529,7 @@ function PlanBuilderScreen({
             numeroDia: Number(day.numeroDia),
             nombre: day.nombre,
             descripcion: draft.descripcion || day.descripcion || `Dia ${day.numeroDia}`,
+            descansoSegundos: toPositiveInteger(draft.descansoSegundos, 60),
           }),
         });
 
@@ -554,6 +569,7 @@ function PlanBuilderScreen({
       setDayDrafts({});
       setDraftSeedPlanId('');
       setDayDescription('');
+      setDayRestSeconds('60');
       setExerciseSearch('');
       setSelectedCategoryId('');
       setSelectedTypeId('');
@@ -956,6 +972,17 @@ function PlanBuilderScreen({
                       value={dayDescription}
                       onChange={(event) => setDayDescription(event.target.value)}
                       placeholder={selectedRutinaDia ? `Dia ${selectedRutinaDia.numeroDia}` : 'Selecciona un dia'}
+                    />
+                  </label>
+
+                  <label>
+                    Descanso (segundos)
+                    <input
+                      type="number"
+                      min="1"
+                      value={dayRestSeconds}
+                      onChange={(event) => setDayRestSeconds(event.target.value)}
+                      placeholder="60"
                     />
                   </label>
 
