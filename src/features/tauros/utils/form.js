@@ -11,17 +11,42 @@ function formatDateOnly(value) {
   return date.toISOString().slice(0, 10);
 }
 
-function formatTimeOnly(value) {
-  if (!value) {
+export function formatDisplayValue(value, path = '') {
+  if (value === null || value === undefined || value === '') {
     return '-';
   }
 
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return '-';
+  if (typeof value === 'boolean') {
+    return value ? 'si' : 'no';
   }
 
-  return date.toISOString().slice(11, 16);
+  if (typeof value === 'string') {
+    if (value === 'true') {
+      return 'si';
+    }
+
+    if (value === 'false') {
+      return 'no';
+    }
+
+    const lowerPath = path.toLowerCase();
+    const isDateField = lowerPath.includes('fecha') || lowerPath.includes('date');
+    const looksLikeIso = value.includes('T') || /^\d{4}-\d{2}-\d{2}/.test(value);
+
+    if (isDateField && looksLikeIso) {
+      return formatDateOnly(value);
+    }
+  }
+
+  if (value instanceof Date) {
+    return formatDateOnly(value);
+  }
+
+  if (typeof value === 'object') {
+    return JSON.stringify(value);
+  }
+
+  return String(value);
 }
 
 export function resolveValue(obj, path) {
@@ -49,25 +74,7 @@ export function resolveValue(obj, path) {
     return '-';
   }
 
-  if (typeof result === 'string') {
-    const lowerPath = path.toLowerCase();
-    const isDateField = lowerPath.includes('fecha') || lowerPath.includes('date');
-    const looksLikeIso = result.includes('T') || /^\d{4}-\d{2}-\d{2}/.test(result);
-
-    if (isDateField && looksLikeIso) {
-      return formatDateOnly(result);
-    }
-  }
-
-  if (result instanceof Date) {
-    return formatDateOnly(result);
-  }
-
-  if (typeof result === 'object') {
-    return JSON.stringify(result);
-  }
-
-  return String(result);
+  return formatDisplayValue(result, path);
 }
 
 export function buildInitialForm(config) {

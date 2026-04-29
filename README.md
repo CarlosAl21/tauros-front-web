@@ -57,8 +57,10 @@ src/
 Crear archivo `.env` usando `.env.example`:
 
 ```bash
-REACT_APP_API_URL=http://localhost:3000
+REACT_APP_API_URL=https://tu-backend.onrender.com
 ```
+
+En desarrollo local puedes seguir usando `http://localhost:3000`; en produccion cambia ese valor por la URL publica de Render.
 
 ## Ejecucion
 

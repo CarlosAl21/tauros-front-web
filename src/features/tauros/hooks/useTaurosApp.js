@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MODULE_MAP } from '../config/modules';
 import { apiRequest } from '../services/api';
+import { uploadDirectlyToCloudinary } from '../services/cloudinary';
 import { buildFormFromRecord, buildInitialForm, normalizePayload } from '../utils/form';
 
 const EMPTY_DASHBOARD = {
@@ -274,8 +275,9 @@ export function useTaurosApp() {
     if (eventosProximos === 0) {
       oportunidades.push('No hay eventos próximos; conviene programar actividades para retención.');
     }
-    if (sugerencias.length > 0) {
-      oportunidades.push(`Hay ${sugerencias.length} sugerencias pendientes por revisar en el panel.`);
+    const sugerenciasPendientes = sugerencias.filter((item) => !Boolean(item?.solucionada));
+    if (sugerenciasPendientes.length > 0) {
+      oportunidades.push(`Hay ${sugerenciasPendientes.length} sugerencias pendientes por revisar en el panel.`);
     }
 
     return {
@@ -489,6 +491,7 @@ export function useTaurosApp() {
 
       const hasVideoFile = typeof File !== 'undefined' && linkVideoFile instanceof File;
       const hasAMFile = typeof Blob !== 'undefined' && linkAMFile instanceof Blob;
+      const hasFotoFile = typeof File !== 'undefined' && linkFotoFile instanceof File;
 
       if (activeModule.key === 'ejercicio' && formMode === 'create') {
         const hasVideoValue = hasVideoFile || hasTextValue(payload.linkVideo);
@@ -503,52 +506,43 @@ export function useTaurosApp() {
         }
       }
 
-      const shouldUseMultipart = activeModule.key === 'ejercicio'
-        && (hasVideoFile || hasAMFile);
-
-      const shouldUploadMachinePhoto = activeModule.key === 'maquina'
-        && typeof File !== 'undefined'
-        && linkFotoFile instanceof File;
-
-      if (shouldUploadMachinePhoto) {
-        delete payload.linkFoto;
-      }
-
-      if (activeModule.key === 'maquina' && formMode === 'create' && !shouldUploadMachinePhoto) {
+      if (activeModule.key === 'maquina' && formMode === 'create' && !hasFotoFile) {
         throw new Error('Debes seleccionar una foto de la maquina');
       }
 
-      const requestBody = (shouldUseMultipart || shouldUploadMachinePhoto)
-        ? (() => {
-          const formData = new FormData();
-          Object.entries(payload).forEach(([key, value]) => {
-            if (value === undefined || value === null || value === '') {
-              return;
-            }
-            formData.append(key, String(value));
+      if (activeModule.key === 'ejercicio') {
+        if (hasVideoFile) {
+          payload.linkVideo = await uploadDirectlyToCloudinary({
+            token,
+            file: linkVideoFile,
+            folder: 'tauros/ejercicios/video',
+            resourceType: 'video',
+            fallbackName: linkVideoFile.name || `video-${Date.now()}.mp4`,
           });
+        }
 
-          if (hasVideoFile) {
-            formData.append('linkVideo', linkVideoFile);
-          }
+        if (hasAMFile) {
+          payload.linkAM = await uploadDirectlyToCloudinary({
+            token,
+            file: linkAMFile,
+            folder: 'tauros/ejercicios/archivo',
+            resourceType: 'image',
+            fallbackName: linkAMFile.name || `am-${Date.now()}.jpg`,
+          });
+        }
+      }
 
-          if (hasAMFile) {
-            const amFile = linkAMFile instanceof File ? linkAMFile : new File([linkAMFile], `am-${Date.now()}.jpg`, { type: 'image/jpeg' });
-            formData.append('linkAM', amFile);
-          }
+      if (activeModule.key === 'maquina' && hasFotoFile) {
+        payload.linkFoto = await uploadDirectlyToCloudinary({
+          token,
+          file: linkFotoFile,
+          folder: 'tauros/maquinas',
+          resourceType: 'image',
+          fallbackName: linkFotoFile.name || `maquina-${Date.now()}.jpg`,
+        });
+      }
 
-          if (activeModule.key === 'ejercicio') {
-            formData.set('categoriaId', String(payload.categoriaId || ''));
-            formData.set('tipoId', String(payload.tipoId || ''));
-          }
-
-          if (shouldUploadMachinePhoto) {
-            formData.append('linkFoto', linkFotoFile);
-          }
-
-          return formData;
-        })()
-        : JSON.stringify(payload);
+      const requestBody = JSON.stringify(payload);
 
       if (formMode === 'edit' && editRecordId) {
         await apiRequest(`${activeModule.endpoint}/${editRecordId}`, token, {

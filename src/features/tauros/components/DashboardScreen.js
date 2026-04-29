@@ -42,21 +42,19 @@ function DashboardScreen({ metrics, dashboardData, insights }) {
             </div>
           </article>
 
-          <article className="opportunities-card">
-            <h2>Oportunidades de Mejora</h2>
-            <div className="opportunities-list">
-              {insights.oportunidades.length > 0 ? (
-                insights.oportunidades.map((oportunidad, idx) => (
+          {insights.oportunidades.length > 0 ? (
+            <article className="opportunities-card">
+              <h2>Oportunidades de Mejora</h2>
+              <div className="opportunities-list">
+                {insights.oportunidades.map((oportunidad, idx) => (
                   <div key={idx} className="opportunity-item">
                     <span className="opportunity-icon">⚠️</span>
                     <span className="opportunity-text">{oportunidad}</span>
                   </div>
-                ))
-              ) : (
-                <p>Todo está optimizado. ¡Excelente trabajo!</p>
-              )}
-            </div>
-          </article>
+                ))}
+              </div>
+            </article>
+          ) : null}
         </>
       )}
 

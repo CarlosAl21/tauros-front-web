@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getInputType, isOptionalField, resolveValue } from '../utils/form';
+import { formatDisplayValue, getInputType, isOptionalField, resolveValue } from '../utils/form';
 import { apiRequest } from '../services/api';
 import MuscleSelector, { MUSCLE_GROUPS } from './MuscleSelector';
 import muscleBackground from '../utils/pictures/Musculos.jpg';
@@ -616,6 +616,7 @@ function ModuleScreen({
         grouped.set(planId, {
           planId,
           planNombre: rutina?.planNombre || 'Plan sin nombre',
+          planCreatedAt: rutina?.planCreatedAt || null,
           dias: [],
         });
       }
@@ -628,7 +629,11 @@ function ModuleScreen({
       dias: plan.dias
         .slice()
         .sort((left, right) => Number(left?.numeroDia || 0) - Number(right?.numeroDia || 0)),
-    }));
+    })).sort((left, right) => {
+      const leftTime = new Date(left.planCreatedAt || 0).getTime();
+      const rightTime = new Date(right.planCreatedAt || 0).getTime();
+      return rightTime - leftTime;
+    });
   }, [userDetailData]);
 
   const getColumnLabel = (field) => {
@@ -764,7 +769,9 @@ function ModuleScreen({
     }
 
     try {
-      const response = await apiRequest(`/rutina-ejercicio/${rutinaEjercicioId}/completada`, token, 'PATCH');
+      const response = await apiRequest(`/rutina-ejercicio/${rutinaEjercicioId}/completada`, token, {
+        method: 'PATCH',
+      });
       
       // Actualizar el estado local
       setUserDetailData((prevData) => {
@@ -788,6 +795,43 @@ function ModuleScreen({
       });
     } catch (error) {
       setUserDetailError(error.message || 'No se pudo actualizar el ejercicio');
+    }
+  };
+
+  const eliminarRutinaAsignada = async (planId, planNombre) => {
+    if (!token || !planId) {
+      return;
+    }
+
+    const confirmed = window.confirm(`¿Eliminar la rutina asignada "${planNombre}"? Esta acción borrará el plan copiado del usuario.`);
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await apiRequest(`/plan-entrenamiento/${planId}`, token, {
+        method: 'DELETE',
+      });
+
+      setUserDetailData((prevData) => {
+        if (!prevData) {
+          return prevData;
+        }
+
+        return {
+          ...prevData,
+          rutinasAsignadas: (prevData.rutinasAsignadas || []).filter((rutina) => String(rutina?.planEntrenamientoId) !== String(planId)),
+        };
+      });
+
+      setUserStatsData((prevStats) => (prevStats ? {
+        ...prevStats,
+        planesActivos: Math.max(Number(prevStats.planesActivos || 0) - 1, 0),
+      } : prevStats));
+
+      await reloadModule();
+    } catch (error) {
+      setUserDetailError(error.message || 'No se pudo eliminar la rutina asignada');
     }
   };
 
@@ -1265,7 +1309,7 @@ function ModuleScreen({
           <section className="event-detail-card">
             <div className="event-detail-card__head">
               <h3>{selectedRecord.nombre || 'Evento sin nombre'}</h3>
-              <span>{selectedRecord.activo === false ? 'Desactivado' : 'Activo'}</span>
+              <span>{formatDisplayValue(selectedRecord.activo, 'activo')}</span>
             </div>
 
             <div className="event-detail-grid">
@@ -1341,8 +1385,21 @@ function ModuleScreen({
                       userRoutineGroups.map((plan, planIndex) => (
                         <details key={plan.planId} className="user-routine-plan-card" open={planIndex === 0}>
                           <summary className="user-routine-plan-card__summary">
-                            <strong>{plan.planNombre}</strong>
-                            <small className="user-routine-plan-card__meta">{plan.dias.length} dias configurados</small>
+                            <div>
+                              <strong>{plan.planNombre}</strong>
+                              <small className="user-routine-plan-card__meta">{plan.dias.length} dias configurados</small>
+                            </div>
+                            <button
+                              type="button"
+                              className="btn-action danger"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                eliminarRutinaAsignada(plan.planId, plan.planNombre);
+                              }}
+                            >
+                              Eliminar rutina
+                            </button>
                           </summary>
 
                           <div className="user-routine-plan-card__content">
@@ -1367,7 +1424,7 @@ function ModuleScreen({
                                               #{ejercicio.orden || '-'} · {ejercicio.series || '-'} series · {ejercicio.repeticiones || '-'} repeticiones
                                             </span>
                                             <small>
-                                              Carga: {ejercicio.carga || '-'} · Notas: {ejercicio.notasEspecificas || '-'}
+                                              Carga: {ejercicio.carga || '-'} · Completado: {formatDisplayValue(ejercicio.completada, 'completada')} · Notas: {ejercicio.notasEspecificas || '-'}
                                             </small>
                                           </div>
                                           <button
