@@ -1372,13 +1372,41 @@ a {
 .user-routine-plan-card__summary {
   list-style: none;
   cursor: pointer;
-  padding: 0.75rem;
+  padding: 0.95rem;
   display: grid;
-  gap: 0.2rem;
+  gap: 0.8rem;
 }
 
 .user-routine-plan-card__summary::-webkit-details-marker {
   display: none;
+}
+
+.user-routine-plan-card__top {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.user-routine-plan-card__title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.user-routine-plan-card__checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: fit-content;
+  font-size: 0.8rem;
+  color: var(--muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.user-routine-plan-card__checkbox input {
+  margin: 0;
+  accent-color: var(--accent);
 }
 
 .user-routine-plan-card__summary strong {
@@ -1391,8 +1419,14 @@ a {
   font-size: 0.76rem;
 }
 
+.user-routine-plan-card__summary .btn-action.danger {
+  justify-self: start;
+  width: fit-content;
+  padding-inline: 1rem;
+}
+
 .user-routine-plan-card__content {
-  padding: 0 0.75rem 0.75rem;
+  padding: 0 0.95rem 0.95rem;
   display: grid;
   gap: 0.55rem;
 }

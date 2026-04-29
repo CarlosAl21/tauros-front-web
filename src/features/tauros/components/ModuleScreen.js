@@ -469,8 +469,10 @@ function ModuleScreen({
   const [categoriaFilter, setCategoriaFilter] = useState('');
   const [tipoFilter, setTipoFilter] = useState('');
   const [showInactiveEvents, setShowInactiveEvents] = useState(false);
+  const [showInactiveUsers, setShowInactiveUsers] = useState(false);
   const [sugerenciaTipoFilter, setSugerenciaTipoFilter] = useState('');
   const [showSolvedSuggestions, setShowSolvedSuggestions] = useState(false);
+  const [confirmModal, setConfirmModal] = useState({ open: false, title: '', loading: false, onConfirm: null });
   const [showEventDetails, setShowEventDetails] = useState(false);
   const [showUserDetails, setShowUserDetails] = useState(false);
   const [userDetailLoading, setUserDetailLoading] = useState(false);
@@ -478,6 +480,7 @@ function ModuleScreen({
   const [userDetailData, setUserDetailData] = useState(null);
   const [userStatsData, setUserStatsData] = useState(null);
   const [userDetailTab, setUserDetailTab] = useState('rutinas');
+  const [selectedRoutinePlanId, setSelectedRoutinePlanId] = useState('');
   const [selectedMuscles, setSelectedMuscles] = useState([]);
   const [videoProcessing, setVideoProcessing] = useState(false);
   const [musclePreviewUrl, setMusclePreviewUrl] = useState('');
@@ -580,6 +583,17 @@ function ModuleScreen({
     });
   }, [filteredRecords, isEventModule, showInactiveEvents]);
 
+  const userFilteredRecords = useMemo(() => {
+    if (!isUserModule) {
+      return filteredRecords;
+    }
+
+    return filteredRecords.filter((record) => {
+      const isActive = record?.isActive !== false;
+      return showInactiveUsers ? !isActive : isActive;
+    });
+  }, [filteredRecords, isUserModule, showInactiveUsers]);
+
   const suggestionFilteredRecords = useMemo(() => {
     if (!isSuggestionModule) {
       return filteredRecords;
@@ -595,12 +609,13 @@ function ModuleScreen({
 
   const rowsToRender = isExerciseModule
     ? exerciseFilteredRecords
-    : (isEventModule ? eventFilteredRecords : (isSuggestionModule ? suggestionFilteredRecords : filteredRecords));
+    : (isEventModule ? eventFilteredRecords : (isUserModule ? userFilteredRecords : (isSuggestionModule ? suggestionFilteredRecords : filteredRecords)));
   const categoriaOptions = isExerciseModule ? getOptionsForField('categoriaId') : [];
   const tipoOptions = isExerciseModule ? getOptionsForField('tipoId') : [];
   const machineOptions = isExerciseModule ? getOptionsForField('maquinaId') : [];
 
   const visibleCount = isCompositionModule ? compositionGroups.length : rowsToRender.length;
+  const canManageUserState = isUserModule && user?.rol === 'admin';
 
   const userRoutineGroups = useMemo(() => {
     const rutinas = userDetailData?.rutinasAsignadas || [];
@@ -690,6 +705,12 @@ function ModuleScreen({
   }, [isEventModule]);
 
   useEffect(() => {
+    if (!isUserModule || user?.rol !== 'admin') {
+      setShowInactiveUsers(false);
+    }
+  }, [isUserModule, user?.rol]);
+
+  useEffect(() => {
     if (!isUserModule) {
       setShowUserDetails(false);
       setUserDetailData(null);
@@ -702,6 +723,7 @@ function ModuleScreen({
     setUserDetailData(null);
     setUserDetailError('');
     setUserDetailLoading(false);
+    setSelectedRoutinePlanId('');
   }, [isUserModule, selectedId]);
 
   useEffect(() => {
@@ -802,36 +824,58 @@ function ModuleScreen({
     if (!token || !planId) {
       return;
     }
+    setConfirmModal({
+      open: true,
+      title: `¿Eliminar la rutina asignada "${planNombre}"? Esta acción borrará el plan copiado del usuario.`,
+      loading: false,
+      onConfirm: async () => {
+        try {
+          setConfirmModal((c) => ({ ...c, loading: true }));
+          await apiRequest(`/plan-entrenamiento/${planId}`, token, { method: 'DELETE' });
 
-    const confirmed = window.confirm(`¿Eliminar la rutina asignada "${planNombre}"? Esta acción borrará el plan copiado del usuario.`);
-    if (!confirmed) {
-      return;
-    }
+          setUserDetailData((prevData) => {
+            if (!prevData) return prevData;
+            return {
+              ...prevData,
+              rutinasAsignadas: (prevData.rutinasAsignadas || []).filter((rutina) => String(rutina?.planEntrenamientoId) !== String(planId)),
+            };
+          });
+
+          setSelectedRoutinePlanId((current) => (String(current) === String(planId) ? '' : current));
+
+          setUserStatsData((prevStats) => (prevStats ? {
+            ...prevStats,
+            planesActivos: Math.max(Number(prevStats.planesActivos || 0) - 1, 0),
+          } : prevStats));
+
+          await reloadModule();
+          setConfirmModal({ open: false, title: '', loading: false, onConfirm: null });
+        } catch (error) {
+          setConfirmModal((c) => ({ ...c, loading: false }));
+          setUserDetailError(error.message || 'No se pudo eliminar la rutina asignada');
+        }
+      },
+    });
+  };
+
+  const closeConfirm = () => setConfirmModal({ open: false, title: '', loading: false, onConfirm: null });
+
+  const handleToggleActive = async (moduleKey, id, currentState) => {
+    if (!token || !id) return;
 
     try {
-      await apiRequest(`/plan-entrenamiento/${planId}`, token, {
-        method: 'DELETE',
-      });
-
-      setUserDetailData((prevData) => {
-        if (!prevData) {
-          return prevData;
-        }
-
-        return {
-          ...prevData,
-          rutinasAsignadas: (prevData.rutinasAsignadas || []).filter((rutina) => String(rutina?.planEntrenamientoId) !== String(planId)),
-        };
-      });
-
-      setUserStatsData((prevStats) => (prevStats ? {
-        ...prevStats,
-        planesActivos: Math.max(Number(prevStats.planesActivos || 0) - 1, 0),
-      } : prevStats));
+      if (currentState === false) {
+        // activate
+        await apiRequest(`/${moduleKey}/${id}/activar`, token, { method: 'PATCH' });
+      } else {
+        // deactivate -> DELETE (soft-delete on backend)
+        await apiRequest(`/${moduleKey}/${id}`, token, { method: 'DELETE' });
+      }
 
       await reloadModule();
+      setSelectedId('');
     } catch (error) {
-      setUserDetailError(error.message || 'No se pudo eliminar la rutina asignada');
+      console.error('toggle active error', error);
     }
   };
 
@@ -925,6 +969,20 @@ function ModuleScreen({
           <span>{loading ? 'Cargando...' : 'Conectado'}</span>
         </div>
 
+        {confirmModal.open && (
+          <div className="confirm-overlay">
+            <div className="confirm-card">
+              <div className="confirm-card__body">
+                <p>{confirmModal.title}</p>
+              </div>
+              <div className="confirm-card__actions">
+                <button type="button" className="btn-action" onClick={closeConfirm} disabled={confirmModal.loading}>Cancelar</button>
+                <button type="button" className="btn-action danger" onClick={() => { if (confirmModal.onConfirm) confirmModal.onConfirm(); }} disabled={confirmModal.loading}>{confirmModal.loading ? 'Procesando...' : 'Confirmar'}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="action-strip">
           {isCategoryOrTypeModule && (
             <button type="button" className="btn-action" onClick={() => navigate('/ejercicios')}>
@@ -958,6 +1016,15 @@ function ModuleScreen({
               disabled={userDetailLoading}
             >
               {userDetailLoading ? 'Cargando detalle...' : (showUserDetails ? 'Ocultar detalle' : 'Ver detalle')}
+            </button>
+          )}
+          {canManageUserState && (
+            <button
+              type="button"
+              className="btn-action"
+              onClick={() => setShowInactiveUsers((current) => !current)}
+            >
+              {showInactiveUsers ? 'Ver activos' : 'Ver inactivos'}
             </button>
           )}
           {isExerciseModule && (
@@ -1055,7 +1122,16 @@ function ModuleScreen({
               Agregar
             </button>
           )}
-          {activeModule.canDelete && selectedRecord && !isExerciseModule && (
+          {canManageUserState && selectedRecord && (
+            <button
+              type="button"
+              className={`btn-action ${selectedRecord?.isActive === false ? '' : 'danger'}`}
+              onClick={() => handleToggleActive('usuario', selectedRecord.userId, selectedRecord.isActive)}
+            >
+              {selectedRecord?.isActive === false ? 'Activar usuario' : 'Desactivar usuario'}
+            </button>
+          )}
+          {activeModule.canDelete && selectedRecord && !isExerciseModule && !isUserModule && (
             <button
               type="button"
               className="btn-action danger"
@@ -1170,6 +1246,18 @@ function ModuleScreen({
                           Eliminar
                         </button>
                       )}
+                      {typeof row?.isActive !== 'undefined' && (
+                        <button
+                          type="button"
+                          className={`btn-action ${row?.isActive === false ? '' : 'danger'}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleToggleActive('ejercicio', row?.ejercicioId || id, row?.isActive);
+                          }}
+                        >
+                          {row?.isActive === false ? 'Activar' : 'Desactivar'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </details>
@@ -1214,6 +1302,33 @@ function ModuleScreen({
                     <span className="machine-card__eyebrow">Maquina</span>
                     <h3>{nombre}</h3>
                     <p>N.{numeroMaquina}</p>
+                    <div className="machine-card__actions">
+                      {activeModule.canDelete && (
+                        <button
+                          type="button"
+                          className="btn-action danger"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setSelectedId(id);
+                            handleDelete();
+                          }}
+                        >
+                          Eliminar
+                        </button>
+                      )}
+                      {typeof row?.isActive !== 'undefined' && (
+                        <button
+                          type="button"
+                          className={`btn-action ${row?.isActive === false ? '' : 'danger'}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            handleToggleActive('maquina', row?.maquinaId || id, row?.isActive);
+                          }}
+                        >
+                          {row?.isActive === false ? 'Activar' : 'Desactivar'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </article>
               );
@@ -1385,21 +1500,38 @@ function ModuleScreen({
                       userRoutineGroups.map((plan, planIndex) => (
                         <details key={plan.planId} className="user-routine-plan-card" open={planIndex === 0}>
                           <summary className="user-routine-plan-card__summary">
-                            <div>
-                              <strong>{plan.planNombre}</strong>
-                              <small className="user-routine-plan-card__meta">{plan.dias.length} dias configurados</small>
+                            <div className="user-routine-plan-card__top">
+                              <label
+                                className="user-routine-plan-card__checkbox"
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedRoutinePlanId === plan.planId}
+                                  onChange={() => {
+                                    setSelectedRoutinePlanId((current) => (current === plan.planId ? '' : plan.planId));
+                                  }}
+                                />
+                                <span>Seleccionar para eliminar</span>
+                              </label>
+                              <div className="user-routine-plan-card__title-block">
+                                <strong>{plan.planNombre}</strong>
+                                <small className="user-routine-plan-card__meta">{plan.dias.length} dias configurados</small>
+                              </div>
                             </div>
-                            <button
-                              type="button"
-                              className="btn-action danger"
-                              onClick={(event) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                eliminarRutinaAsignada(plan.planId, plan.planNombre);
-                              }}
-                            >
-                              Eliminar rutina
-                            </button>
+                            {selectedRoutinePlanId === plan.planId && (
+                              <button
+                                type="button"
+                                className="btn-action danger"
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  eliminarRutinaAsignada(plan.planId, plan.planNombre);
+                                }}
+                              >
+                                Eliminar rutina
+                              </button>
+                            )}
                           </summary>
 
                           <div className="user-routine-plan-card__content">
