@@ -584,7 +584,6 @@ export function useTaurosApp() {
       setSelectedId('');
       await reloadModule();
       await loadCatalogs();
-      window.location.reload();
     } catch (err) {
       setError(err.message || 'No se pudo eliminar el registro');
     }

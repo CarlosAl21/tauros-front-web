@@ -72,7 +72,7 @@ function PlanDetailPage({
       await apiRequest(`/plan-entrenamiento/${planId}`, token, {
         method: 'DELETE',
       });
-      window.location.assign('/planes');
+      navigate('/planes');
     } catch (err) {
       setError(err.message || 'No se pudo eliminar el plan');
     } finally {
