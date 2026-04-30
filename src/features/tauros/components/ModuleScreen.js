@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { formatDisplayValue, getInputType, isOptionalField, resolveValue } from '../utils/form';
 import { apiRequest } from '../services/api';
 import MuscleSelector, { MUSCLE_GROUPS } from './MuscleSelector';
+import MachineSelector from './MachineSelector';
 import muscleBackground from '../utils/pictures/Musculos.jpg';
 
 function isFileLike(value) {
@@ -1833,15 +1834,11 @@ function ModuleScreen({
                 return (
                   <label key={field}>
                     {formatLabel(field)}
-                    <select
+                    <MachineSelector
+                      options={machineOptions}
                       value={createForm[field] ?? ''}
-                      onChange={(event) => setCreateForm((current) => ({ ...current, [field]: event.target.value }))}
-                    >
-                      <option value="">Sin maquina</option>
-                      {machineOptions.map((opt) => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
+                      onChange={(selectedValue) => setCreateForm((current) => ({ ...current, [field]: selectedValue }))}
+                    />
                   </label>
                 );
               }
