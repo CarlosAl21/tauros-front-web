@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
 import './App.css';
 import AuthPage from './features/tauros/pages/AuthPage';
 import DashboardPage from './features/tauros/pages/DashboardPage';
@@ -53,7 +53,7 @@ function App() {
   });
 
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Routes>
         <Route
           path="/login"
@@ -205,7 +205,7 @@ function App() {
         />
         <Route path="*" element={<NotFoundPage token={token} />} />
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
 

@@ -122,9 +122,10 @@ a {
 .main-content {
   flex: 1;
   min-width: 0;
-  width: min(100%, 1480px);
+  width: 100%;
+  max-width: none;
   margin: 0 auto;
-  padding: 1.4rem 1.6rem 2rem;
+  padding: clamp(1rem, 1.4vw, 1.6rem) clamp(1rem, 1.6vw, 1.8rem) 2rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
@@ -550,7 +551,7 @@ a {
 .module-grid {
   display: grid;
   gap: 1rem;
-  grid-template-columns: minmax(0, 1.2fr) minmax(700px, 1fr);
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr);
   align-items: start;
 }
 
@@ -1075,7 +1076,7 @@ a {
 }
 
 .module-grid--compact {
-  grid-template-columns: minmax(0, 1fr) minmax(720px, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 }
 
 .table-card {
@@ -2355,6 +2356,10 @@ th {
 }
 
 @media (max-width: 1160px) {
+  .main-content {
+    padding-inline: 1rem;
+  }
+
   .dashboard-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2367,8 +2372,57 @@ th {
     grid-template-columns: 1fr;
   }
 
+  .module-grid--compact {
+    grid-template-columns: 1fr;
+  }
+
+  .table-card,
+  .form-card,
+  .activity-card,
+  .insights-card,
+  .opportunities-card,
+  .stats-card,
+  .plan-builder-card,
+  .plan-detail-card,
+  .plan-day-card {
+    width: 100%;
+    max-width: none;
+  }
+
   .form-grid.compact {
     max-height: none;
+  }
+}
+
+@media (max-width: 1440px) {
+  .main-content {
+    padding-inline: 1rem;
+  }
+
+  .module-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .module-grid--compact {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .plan-builder-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .plan-builder-exercise-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .plan-builder-defaults,
+  .plan-builder-selected-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .plan-builder-inline-label--compact {
+    min-width: 0;
+    width: 100%;
   }
 }
 
