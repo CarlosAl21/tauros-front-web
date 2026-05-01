@@ -1,10 +1,34 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const { spawn } = require('child_process');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const buildPath = path.join(__dirname, 'build');
+
+const runDevServer = process.argv.includes('dev');
+
+if (runDevServer) {
+  const isWindows = process.platform === 'win32';
+  const devCommand = isWindows ? 'npm run start:dev' : 'npm run start:dev';
+  const child = spawn(isWindows ? 'cmd.exe' : 'sh', isWindows ? ['/c', devCommand] : ['-c', devCommand], {
+    cwd: __dirname,
+    stdio: 'inherit',
+    env: process.env,
+  });
+
+  child.on('exit', (code) => {
+    process.exit(code ?? 0);
+  });
+
+  child.on('error', (error) => {
+    console.error('No se pudo iniciar el modo desarrollo:', error.message);
+    process.exit(1);
+  });
+
+  return;
+}
 
 // Verificar que la carpeta build existe
 if (!fs.existsSync(buildPath)) {

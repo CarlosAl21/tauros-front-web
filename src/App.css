@@ -551,7 +551,7 @@ a {
 .module-grid {
   display: grid;
   gap: 1rem;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr);
+  grid-template-columns: 1fr;
   align-items: start;
 }
 
@@ -1076,7 +1076,7 @@ a {
 }
 
 .module-grid--compact {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: 1fr;
 }
 
 .table-card {
@@ -1623,10 +1623,10 @@ a {
 
 .exercise-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  gap: 1.2rem;
-  padding: 1.3rem;
-  max-height: calc(100vh - 240px);
+  grid-template-columns: 1fr;
+  gap: 1.4rem;
+  padding: 1.4rem;
+  max-height: none;
   overflow: auto;
 }
 
@@ -1666,7 +1666,7 @@ a {
 .exercise-card__poster,
 .exercise-card__video {
   display: block;
-  width: 280px;
+  width: 360px;
   aspect-ratio: 16 / 9;
   object-fit: cover;
   border-radius: 12px;
@@ -1714,15 +1714,15 @@ a {
   display: grid;
   gap: 1.2rem;
   padding: 0 1.2rem 1.2rem;
-  max-height: 62vh;
+  max-height: none;
   overflow-y: auto;
   scrollbar-gutter: stable;
 }
 
 .exercise-card__detail-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.65rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
 }
 
 .exercise-card__detail-grid div {
@@ -1751,14 +1751,14 @@ a {
 
 .exercise-card__media {
   display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.9fr);
-  gap: 0.9rem;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.2rem;
 }
 
 .exercise-card__video {
   width: 100%;
   aspect-ratio: 16 / 9;
-  max-height: 260px;
+  max-height: 400px;
   object-fit: contain;
 }
 
@@ -1769,7 +1769,7 @@ a {
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: transparent;
-  max-height: 260px;
+  max-height: 400px;
   object-fit: contain;
 }
 
@@ -1897,6 +1897,7 @@ th {
 .form-card {
   padding: 1rem;
   min-height: 700px;
+  order: -1;
 }
 
 .form-grid {
