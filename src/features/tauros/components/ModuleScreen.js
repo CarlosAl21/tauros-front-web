@@ -196,7 +196,6 @@ function formatLabel(field) {
     grasaVisceral: 'Grasa visceral (%)',
     masaMuscularKg: 'Masa muscular (kg)',
     masaMuscularPorcentaje: 'Masa muscular (%)',
-    masaMuscularTipo: 'Tipo de medicion masa muscular',
     composicionCorporalId: 'Composicion corporal',
     planEntrenamientoId: 'Plan de entrenamiento',
     rutinaDiaId: 'Rutina dia',
@@ -234,13 +233,6 @@ function getFieldOptions(activeModule, field, user, getOptionsForField) {
       { value: 'user', label: 'user' },
       { value: 'coach', label: 'coach' },
       { value: 'admin', label: 'admin' },
-    ];
-  }
-
-  if (activeModule.key === 'composicion-corporal' && field === 'masaMuscularTipo') {
-    return [
-      { value: 'kg', label: 'kg' },
-      { value: 'lb', label: 'lb' },
     ];
   }
 
