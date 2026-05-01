@@ -1622,8 +1622,9 @@ a {
 
 .exercise-card-grid {
   display: grid;
-  gap: 0.85rem;
-  padding: 0.9rem;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 1.2rem;
+  padding: 1.3rem;
   max-height: calc(100vh - 240px);
   overflow: auto;
 }
@@ -1645,8 +1646,8 @@ a {
   cursor: pointer;
   display: flex;
   justify-content: space-between;
-  gap: 0.85rem;
-  padding: 0.9rem;
+  gap: 1.2rem;
+  padding: 1.2rem;
   align-items: center;
 }
 
@@ -1664,7 +1665,7 @@ a {
 .exercise-card__poster,
 .exercise-card__video {
   display: block;
-  width: 190px;
+  width: 280px;
   aspect-ratio: 16 / 9;
   object-fit: cover;
   border-radius: 12px;
@@ -1697,7 +1698,7 @@ a {
 .exercise-card__summary-copy h3 {
   margin: 0;
   font-family: 'Lexend', sans-serif;
-  font-size: 1.05rem;
+  font-size: 1.3rem;
   color: var(--text);
 }
 
@@ -1705,13 +1706,13 @@ a {
 .exercise-card__toggle {
   margin: 0;
   color: var(--muted);
-  font-size: 0.8rem;
+  font-size: 0.95rem;
 }
 
 .exercise-card__body {
   display: grid;
-  gap: 0.9rem;
-  padding: 0 0.9rem 0.9rem;
+  gap: 1.2rem;
+  padding: 0 1.2rem 1.2rem;
   max-height: 62vh;
   overflow-y: auto;
   scrollbar-gutter: stable;
@@ -1724,7 +1725,7 @@ a {
 }
 
 .exercise-card__detail-grid div {
-  padding: 0.7rem 0.75rem;
+  padding: 0.9rem 1rem;
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.06);

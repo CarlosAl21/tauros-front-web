@@ -1,4 +1,15 @@
-export const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
+// La URL del backend se obtiene de la variable de entorno, o usa localhost:3001 en desarrollo
+// En producción, debe estar configurada en la variable REACT_APP_API_URL
+const getApiBaseUrl = () => {
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
+  // Detectar el host actual (sin puerto) y usarlo con el puerto 3001 para el backend
+  const currentHost = window.location.hostname;
+  return `http://${currentHost}:3001`;
+};
+
+export const API_BASE_URL = getApiBaseUrl();
 
 export async function apiRequest(path, token, options = {}) {
   const headers = { ...(options.headers || {}) };
