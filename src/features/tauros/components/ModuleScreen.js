@@ -4,10 +4,33 @@ import { formatDisplayValue, getInputType, isOptionalField, resolveValue } from 
 import { apiRequest } from '../services/api';
 import MuscleSelector, { MUSCLE_GROUPS } from './MuscleSelector';
 import MachineSelector from './MachineSelector';
+import PlanNutricionalScreen from './PlanNutricionalScreen';
 import muscleBackground from '../utils/pictures/Musculos.jpg';
 
 function isFileLike(value) {
   return typeof File !== 'undefined' && value instanceof File;
+}
+
+function secondsToInputValue(seconds) {
+  const parsed = Number(seconds);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return { value: '1', unit: 'seconds' };
+  }
+
+  if (parsed >= 60 && parsed % 60 === 0) {
+    return { value: String(parsed / 60), unit: 'minutes' };
+  }
+
+  return { value: String(parsed), unit: 'seconds' };
+}
+
+function toSeconds(value, unit = 'seconds', fallback = 1) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return fallback;
+  }
+
+  return unit === 'minutes' ? Math.trunc(parsed * 60) : Math.trunc(parsed);
 }
 
 async function compressVideoFile(file) {
@@ -484,9 +507,31 @@ function ModuleScreen({
   const [userStatsData, setUserStatsData] = useState(null);
   const [userDetailTab, setUserDetailTab] = useState('rutinas');
   const [selectedRoutinePlanId, setSelectedRoutinePlanId] = useState('');
+  const [editingRoutineExerciseId, setEditingRoutineExerciseId] = useState('');
+  const [editingRoutineExerciseForm, setEditingRoutineExerciseForm] = useState({});
+  const [savingRoutineExercise, setSavingRoutineExercise] = useState(false);
   const [selectedMuscles, setSelectedMuscles] = useState([]);
   const [videoProcessing, setVideoProcessing] = useState(false);
   const [musclePreviewUrl, setMusclePreviewUrl] = useState('');
+
+  // Close form with muscle reset for exercise module
+  const handleCloseForm = () => {
+    if (isExerciseModule) {
+      setSelectedMuscles([]);
+      setMusclePreviewUrl((current) => {
+        if (current) {
+          URL.revokeObjectURL(current);
+        }
+        return '';
+      });
+      setCreateForm((current) => ({
+        ...current,
+        linkAMFile: undefined,
+      }));
+    }
+    closeForm();
+  };
+
   const formFields = (activeModule.formFields || []).filter((field) => {
     if (isUserModule && field === 'password' && formMode === 'edit' && user?.rol !== 'admin') {
       return false;
@@ -785,6 +830,122 @@ function ModuleScreen({
       setShowUserDetails(false);
     } finally {
       setUserDetailLoading(false);
+    }
+  };
+
+  const openEditRoutineExercise = (ejercicio) => {
+    const tiempoSegundos = Number(ejercicio?.tiempoSegundos || 0);
+    const tiempoValues = secondsToInputValue(tiempoSegundos);
+    const descansoValues = secondsToInputValue(ejercicio?.descansoSegundos || 0);
+    const warmups = Array.isArray(ejercicio?.calentamientos) ? ejercicio.calentamientos : [];
+
+    setEditingRoutineExerciseId(String(ejercicio?.rutinaEjercicioId || ''));
+    setEditingRoutineExerciseForm({
+      series: String(ejercicio?.series ?? ''),
+      executionMode: tiempoSegundos > 0 ? 'time' : 'reps',
+      repeticiones: String(ejercicio?.repeticiones ?? ''),
+      tiempoValor: tiempoSegundos > 0 ? tiempoValues.value : '1',
+      tiempoUnidad: tiempoSegundos > 0 ? tiempoValues.unit : 'seconds',
+      descansoValor: descansoValues.value,
+      descansoUnidad: descansoValues.unit,
+      carga: String(ejercicio?.carga || ''),
+      notasEspecificas: String(ejercicio?.notasEspecificas || ''),
+      calentamientos: warmups.map((calentamiento) => {
+        const hasDuration = calentamiento?.duracionSegundos !== undefined && calentamiento?.duracionSegundos !== null;
+        const durationSeconds = Number(calentamiento?.duracionSegundos || 0);
+        const canUseWarmupMinutes = durationSeconds >= 60 && durationSeconds % 60 === 0;
+
+        return {
+          mode: hasDuration ? 'time' : 'reps',
+          valor: String(hasDuration ? durationSeconds : (calentamiento?.repeticiones ?? 10)),
+          unidad: hasDuration && canUseWarmupMinutes ? 'minutes' : 'seconds',
+          intensidad: String(calentamiento?.intensidad || 'baja'),
+        };
+      }),
+    });
+    setUserDetailError('');
+  };
+
+  const closeEditRoutineExercise = () => {
+    setEditingRoutineExerciseId('');
+    setEditingRoutineExerciseForm({});
+    setUserDetailError('');
+  };
+
+  const saveRoutineExercise = async (rutinaEjercicioId) => {
+    if (!token || !rutinaEjercicioId) {
+      return;
+    }
+
+    try {
+      setSavingRoutineExercise(true);
+      setUserDetailError('');
+
+      const executionMode = editingRoutineExerciseForm.executionMode || 'reps';
+      const series = Math.max(1, Number(editingRoutineExerciseForm.series || 1));
+      const repeticiones = Math.max(1, Number(editingRoutineExerciseForm.repeticiones || 1));
+      const tiempoSegundos = executionMode === 'time'
+        ? toSeconds(editingRoutineExerciseForm.tiempoValor || 1, editingRoutineExerciseForm.tiempoUnidad || 'seconds', 1)
+        : null;
+      const descansoSegundos = toSeconds(
+        editingRoutineExerciseForm.descansoValor || 1,
+        editingRoutineExerciseForm.descansoUnidad || 'seconds',
+        1,
+      );
+
+      const payload = {
+        series,
+        repeticiones: executionMode === 'reps' ? repeticiones : null,
+        tiempoSegundos,
+        descansoSegundos,
+        carga: editingRoutineExerciseForm.carga || '',
+        notasEspecificas: editingRoutineExerciseForm.notasEspecificas || '',
+        calentamientos: Array.isArray(editingRoutineExerciseForm.calentamientos)
+          ? editingRoutineExerciseForm.calentamientos.map((warmup, index) => {
+            const isTimeWarmup = warmup?.mode === 'time';
+            const warmupValue = Math.max(1, Number(warmup?.valor || 1));
+            return {
+              orden: index + 1,
+              intensidad: warmup?.intensidad || 'baja',
+              repeticiones: isTimeWarmup ? null : warmupValue,
+              duracionSegundos: isTimeWarmup ? Math.trunc((warmup?.unidad === 'minutes') ? warmupValue * 60 : warmupValue) : null,
+            };
+          })
+          : [],
+      };
+
+      const response = await apiRequest(`/rutina-ejercicio/${rutinaEjercicioId}`, token, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      });
+
+      setUserDetailData((prevData) => {
+        if (!prevData) return prevData;
+
+        return {
+          ...prevData,
+          rutinasAsignadas: (prevData.rutinasAsignadas || []).map((rutina) => ({
+            ...rutina,
+            ejercicios: (rutina.ejercicios || []).map((ejercicio) => {
+              if (String(ejercicio?.rutinaEjercicioId) !== String(rutinaEjercicioId)) {
+                return ejercicio;
+              }
+
+              return {
+                ...ejercicio,
+                ...response,
+                ...payload,
+              };
+            }),
+          })),
+        };
+      });
+
+      closeEditRoutineExercise();
+    } catch (error) {
+      setUserDetailError(error.message || 'No se pudo guardar los cambios del ejercicio');
+    } finally {
+      setSavingRoutineExercise(false);
     }
   };
 
@@ -1088,7 +1249,7 @@ function ModuleScreen({
               className="btn-action"
               onClick={() => {
                 if (formMode === 'create') {
-                  closeForm();
+                  handleCloseForm();
                   return;
                 }
 
@@ -1491,6 +1652,12 @@ function ModuleScreen({
               >
                 Análisis
               </button>
+              <button
+                className={`tab-button ${userDetailTab === 'nutricion' ? 'active' : ''}`}
+                onClick={() => setUserDetailTab('nutricion')}
+              >
+                Plan Nutricional
+              </button>
             </div>
 
             {userDetailError && <p className="status error">{userDetailError}</p>}
@@ -1552,24 +1719,261 @@ function ModuleScreen({
                                         key={ejercicio.rutinaEjercicioId || `${rutina.rutinaDiaId}-${ejercicio.ejercicioId || ejercicio.ejercicioNombre}`}
                                         className={`user-routine-exercise-card ${ejercicio.completada ? 'completada' : ''}`}
                                       >
-                                        <div className="exercise-header">
-                                          <div className="exercise-info">
+                                        {String(editingRoutineExerciseId) === String(ejercicio.rutinaEjercicioId) ? (
+                                          <div className="user-routine-exercise-edit">
                                             <strong>{ejercicio.ejercicioNombre || 'Ejercicio sin nombre'}</strong>
-                                            <span>
-                                              #{ejercicio.orden || '-'} · {ejercicio.series || '-'} series · {ejercicio.repeticiones || '-'} repeticiones
-                                            </span>
-                                            <small>
-                                              Carga: {ejercicio.carga || '-'} · Completado: {formatDisplayValue(ejercicio.completada, 'completada')} · Notas: {ejercicio.notasEspecificas || '-'}
-                                            </small>
+
+                                            <div className="user-routine-exercise-edit__grid">
+                                              <label>
+                                                Series
+                                                <input
+                                                  type="number"
+                                                  min="1"
+                                                  value={editingRoutineExerciseForm.series || ''}
+                                                  onChange={(event) => setEditingRoutineExerciseForm((current) => ({ ...current, series: event.target.value }))}
+                                                />
+                                              </label>
+
+                                              <label>
+                                                Modo
+                                                <select
+                                                  value={editingRoutineExerciseForm.executionMode || 'reps'}
+                                                  onChange={(event) => setEditingRoutineExerciseForm((current) => ({ ...current, executionMode: event.target.value }))}
+                                                >
+                                                  <option value="reps">Repeticiones</option>
+                                                  <option value="time">Tiempo</option>
+                                                </select>
+                                              </label>
+
+                                              {(editingRoutineExerciseForm.executionMode || 'reps') === 'time' ? (
+                                                <div className="user-routine-exercise-edit__time-block">
+                                                  <label>
+                                                    Tiempo
+                                                    <input
+                                                      type="number"
+                                                      min="1"
+                                                      value={editingRoutineExerciseForm.tiempoValor || ''}
+                                                      onChange={(event) => setEditingRoutineExerciseForm((current) => ({ ...current, tiempoValor: event.target.value }))}
+                                                    />
+                                                  </label>
+
+                                                  <label>
+                                                    Unidad
+                                                    <select
+                                                      value={editingRoutineExerciseForm.tiempoUnidad || 'seconds'}
+                                                      onChange={(event) => setEditingRoutineExerciseForm((current) => ({ ...current, tiempoUnidad: event.target.value }))}
+                                                    >
+                                                      <option value="seconds">Segundos</option>
+                                                      <option value="minutes">Minutos</option>
+                                                    </select>
+                                                  </label>
+                                                </div>
+                                              ) : (
+                                                <label>
+                                                  Repeticiones
+                                                  <input
+                                                    type="number"
+                                                    min="1"
+                                                    value={editingRoutineExerciseForm.repeticiones || ''}
+                                                    onChange={(event) => setEditingRoutineExerciseForm((current) => ({ ...current, repeticiones: event.target.value }))}
+                                                  />
+                                                </label>
+                                              )}
+
+                                              <div className="user-routine-exercise-edit__rest-block">
+                                                <label>
+                                                  Descanso
+                                                  <input
+                                                    type="number"
+                                                    min="1"
+                                                    value={editingRoutineExerciseForm.descansoValor || ''}
+                                                    onChange={(event) => setEditingRoutineExerciseForm((current) => ({ ...current, descansoValor: event.target.value }))}
+                                                  />
+                                                </label>
+
+                                                <label>
+                                                  Unidad
+                                                  <select
+                                                    value={editingRoutineExerciseForm.descansoUnidad || 'seconds'}
+                                                    onChange={(event) => setEditingRoutineExerciseForm((current) => ({ ...current, descansoUnidad: event.target.value }))}
+                                                  >
+                                                    <option value="seconds">Segundos</option>
+                                                    <option value="minutes">Minutos</option>
+                                                  </select>
+                                                </label>
+                                              </div>
+
+                                              <label>
+                                                Carga
+                                                <input
+                                                  type="text"
+                                                  value={editingRoutineExerciseForm.carga || ''}
+                                                  onChange={(event) => setEditingRoutineExerciseForm((current) => ({ ...current, carga: event.target.value }))}
+                                                />
+                                              </label>
+
+                                              <label className="user-routine-exercise-edit__notes">
+                                                Notas
+                                                <textarea
+                                                  value={editingRoutineExerciseForm.notasEspecificas || ''}
+                                                  onChange={(event) => setEditingRoutineExerciseForm((current) => ({ ...current, notasEspecificas: event.target.value }))}
+                                                />
+                                              </label>
+                                            </div>
+
+                                            <div className="user-routine-warmups">
+                                              <div className="user-routine-warmups__head">
+                                                <strong>Calentamientos</strong>
+                                                <button
+                                                  type="button"
+                                                  className="btn-action"
+                                                  onClick={() => setEditingRoutineExerciseForm((current) => ({
+                                                    ...current,
+                                                    calentamientos: [
+                                                      ...(Array.isArray(current.calentamientos) ? current.calentamientos : []),
+                                                      { mode: 'reps', valor: '10', unidad: 'seconds', intensidad: 'baja' },
+                                                    ],
+                                                  }))}
+                                                >
+                                                  + Agregar
+                                                </button>
+                                              </div>
+
+                                              {(Array.isArray(editingRoutineExerciseForm.calentamientos) && editingRoutineExerciseForm.calentamientos.length > 0) ? (
+                                                editingRoutineExerciseForm.calentamientos.map((warmup, warmupIndex) => (
+                                                  <div key={`${ejercicio.rutinaEjercicioId}-warmup-${warmupIndex}`} className="user-routine-warmup-item">
+                                                    <label>
+                                                      Modo
+                                                      <select
+                                                        value={warmup.mode || 'reps'}
+                                                        onChange={(event) => setEditingRoutineExerciseForm((current) => ({
+                                                          ...current,
+                                                          calentamientos: (current.calentamientos || []).map((item, index) => (
+                                                            index === warmupIndex ? { ...item, mode: event.target.value } : item
+                                                          )),
+                                                        }))}
+                                                      >
+                                                        <option value="reps">Repeticiones</option>
+                                                        <option value="time">Tiempo</option>
+                                                      </select>
+                                                    </label>
+
+                                                    <label>
+                                                      {(warmup.mode || 'reps') === 'time' ? 'Tiempo' : 'Repeticiones'}
+                                                      <input
+                                                        type="number"
+                                                        min="1"
+                                                        value={warmup.valor || ''}
+                                                        onChange={(event) => setEditingRoutineExerciseForm((current) => ({
+                                                          ...current,
+                                                          calentamientos: (current.calentamientos || []).map((item, index) => (
+                                                            index === warmupIndex ? { ...item, valor: event.target.value } : item
+                                                          )),
+                                                        }))}
+                                                      />
+                                                    </label>
+
+                                                    {(warmup.mode || 'reps') === 'time' && (
+                                                      <label>
+                                                        Unidad
+                                                        <select
+                                                          value={warmup.unidad || 'seconds'}
+                                                          onChange={(event) => setEditingRoutineExerciseForm((current) => ({
+                                                            ...current,
+                                                            calentamientos: (current.calentamientos || []).map((item, index) => (
+                                                              index === warmupIndex ? { ...item, unidad: event.target.value } : item
+                                                            )),
+                                                          }))}
+                                                        >
+                                                          <option value="seconds">Segundos</option>
+                                                          <option value="minutes">Minutos</option>
+                                                        </select>
+                                                      </label>
+                                                    )}
+
+                                                    <label>
+                                                      Intensidad
+                                                      <select
+                                                        value={warmup.intensidad || 'baja'}
+                                                        onChange={(event) => setEditingRoutineExerciseForm((current) => ({
+                                                          ...current,
+                                                          calentamientos: (current.calentamientos || []).map((item, index) => (
+                                                            index === warmupIndex ? { ...item, intensidad: event.target.value } : item
+                                                          )),
+                                                        }))}
+                                                      >
+                                                        <option value="baja">Baja</option>
+                                                        <option value="media">Media</option>
+                                                        <option value="alta">Alta</option>
+                                                      </select>
+                                                    </label>
+
+                                                    <button
+                                                      type="button"
+                                                      className="btn-action danger"
+                                                      onClick={() => setEditingRoutineExerciseForm((current) => ({
+                                                        ...current,
+                                                        calentamientos: (current.calentamientos || []).filter((_, index) => index !== warmupIndex),
+                                                      }))}
+                                                    >
+                                                      Quitar
+                                                    </button>
+                                                  </div>
+                                                ))
+                                              ) : (
+                                                <small className="plan-builder-empty">Sin calentamientos configurados.</small>
+                                              )}
+                                            </div>
+
+                                            <div className="user-routine-exercise-edit__actions">
+                                              <button
+                                                type="button"
+                                                className="btn-action"
+                                                onClick={() => saveRoutineExercise(ejercicio.rutinaEjercicioId)}
+                                                disabled={savingRoutineExercise}
+                                              >
+                                                {savingRoutineExercise ? 'Guardando...' : 'Guardar'}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                className="btn-action"
+                                                onClick={closeEditRoutineExercise}
+                                                disabled={savingRoutineExercise}
+                                              >
+                                                Cancelar
+                                              </button>
+                                            </div>
                                           </div>
-                                          <button
-                                            className={`exercise-toggle-btn ${ejercicio.completada ? 'active' : ''}`}
-                                            onClick={() => marcarEjercicioCompletado(ejercicio.rutinaEjercicioId)}
-                                            title={ejercicio.completada ? 'Marcar como no completada' : 'Marcar como completada'}
-                                          >
-                                            {ejercicio.completada ? '✓' : '○'}
-                                          </button>
-                                        </div>
+                                        ) : (
+                                          <div className="exercise-header">
+                                            <div className="exercise-info">
+                                              <strong>{ejercicio.ejercicioNombre || 'Ejercicio sin nombre'}</strong>
+                                              <span>
+                                                #{ejercicio.orden || '-'} · {ejercicio.series || '-'} series · {ejercicio.tiempoSegundos ? `${ejercicio.tiempoSegundos}s` : `${ejercicio.repeticiones || '-'} repeticiones`}
+                                              </span>
+                                              <small>
+                                                Carga: {ejercicio.carga || '-'} · Completado: {formatDisplayValue(ejercicio.completada, 'completada')} · Notas: {ejercicio.notasEspecificas || '-'}
+                                              </small>
+                                            </div>
+
+                                            <div className="user-routine-exercise-actions">
+                                              <button
+                                                type="button"
+                                                className="btn-action"
+                                                onClick={() => openEditRoutineExercise(ejercicio)}
+                                              >
+                                                Editar
+                                              </button>
+                                              <button
+                                                className={`exercise-toggle-btn ${ejercicio.completada ? 'active' : ''}`}
+                                                onClick={() => marcarEjercicioCompletado(ejercicio.rutinaEjercicioId)}
+                                                title={ejercicio.completada ? 'Marcar como no completada' : 'Marcar como completada'}
+                                              >
+                                                {ejercicio.completada ? '✓' : '○'}
+                                              </button>
+                                            </div>
+                                          </div>
+                                        )}
                                       </article>
                                     ))
                                   ) : (
@@ -1662,19 +2066,30 @@ function ModuleScreen({
                 )}
               </>
             )}
+
+            {userDetailTab === 'nutricion' && (
+              <PlanNutricionalScreen
+                usuarioId={selectedRecord?.userId}
+                token={token}
+              />
+            )}
           </section>
         )}
       </article>
 
       {activeModule.canCreate && formMode !== 'closed' && (
-        <article className="form-card">
+        <>
+          {isExerciseModule && (
+            <div className="form-modal-overlay" onClick={handleCloseForm} />
+          )}
+          <article className={`form-card ${isExerciseModule ? 'form-card--fullscreen' : ''}`}>
           <div className="card-head card-head--tight">
             <h2>
               {formMode === 'edit'
                 ? (isUserModule ? 'Editar usuario' : 'Editar registro')
                 : (activeModule.key === 'usuario' ? 'Nuevo usuario' : 'Nuevo registro')}
             </h2>
-            <button type="button" className="btn-action" onClick={closeForm}>Cerrar</button>
+            <button type="button" className="btn-action" onClick={handleCloseForm}>Cerrar</button>
           </div>
           {activeModule.key === 'usuario' && user?.rol !== 'admin' && (
             <p className="status">El coach crea usuarios normales con rol user.</p>
@@ -2087,6 +2502,7 @@ function ModuleScreen({
             </button>
           </form>
         </article>
+        </>
       )}
     </section>
   );

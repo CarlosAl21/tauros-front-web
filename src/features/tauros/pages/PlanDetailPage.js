@@ -61,6 +61,18 @@ function PlanDetailPage({
     };
   }, [planId, token]);
 
+  const handlePlanUpdate = async () => {
+    try {
+      setLoading(true);
+      const response = await apiRequest(`/plan-entrenamiento/${planId}`, token);
+      setPlan(response);
+    } catch (err) {
+      setError(err.message || 'No se pudo recargar el plan');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDeletePlan = async () => {
     if (!planId) {
       return;
@@ -142,7 +154,7 @@ function PlanDetailPage({
         </div>
       )}
       {error && <p className="status error">{error}</p>}
-      <PlanDetailScreen plan={plan} loading={loading} />
+      <PlanDetailScreen plan={plan} loading={loading} token={token} onUpdate={handlePlanUpdate} />
     </MainLayout>
   );
 }
