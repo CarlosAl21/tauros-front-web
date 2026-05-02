@@ -11,6 +11,15 @@ const getApiBaseUrl = () => {
 
 export const API_BASE_URL = getApiBaseUrl();
 
+const handleUnauthorized = () => {
+  localStorage.removeItem('tauros_token');
+  localStorage.removeItem('tauros_user');
+
+  if (window.location.hash !== '#/login') {
+    window.location.hash = '/login';
+  }
+};
+
 export async function apiRequest(path, token, options = {}) {
   const headers = { ...(options.headers || {}) };
 
@@ -31,6 +40,10 @@ export async function apiRequest(path, token, options = {}) {
   const payload = contentType.includes('application/json') ? await response.json() : await response.text();
 
   if (!response.ok) {
+    if (response.status === 401) {
+      handleUnauthorized();
+    }
+
     if (typeof payload === 'object' && payload !== null) {
       throw new Error(payload.message || 'Error de conexion con backend');
     }
