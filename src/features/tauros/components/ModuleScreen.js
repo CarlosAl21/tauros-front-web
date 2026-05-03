@@ -24,6 +24,26 @@ function secondsToInputValue(seconds) {
   return { value: String(parsed), unit: 'seconds' };
 }
 
+function formatSecondsDisplay(seconds) {
+  const parsed = Number(seconds);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return '-';
+  }
+
+  if (parsed >= 60) {
+    const minutes = Math.floor(parsed / 60);
+    const remainingSeconds = parsed % 60;
+
+    if (remainingSeconds === 0) {
+      return `${minutes} ${minutes === 1 ? 'minuto' : 'minutos'}`;
+    }
+
+    return `${minutes} ${minutes === 1 ? 'minuto' : 'minutos'} ${remainingSeconds} ${remainingSeconds === 1 ? 'segundo' : 'segundos'}`;
+  }
+
+  return `${parsed} ${parsed === 1 ? 'segundo' : 'segundos'}`;
+}
+
 function toSeconds(value, unit = 'seconds', fallback = 1) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 1) {
@@ -507,6 +527,7 @@ function ModuleScreen({
   const [userStatsData, setUserStatsData] = useState(null);
   const [userDetailTab, setUserDetailTab] = useState('rutinas');
   const [selectedRoutinePlanId, setSelectedRoutinePlanId] = useState('');
+  const [selectedRoutineExerciseId, setSelectedRoutineExerciseId] = useState('');
   const [editingRoutineExerciseId, setEditingRoutineExerciseId] = useState('');
   const [editingRoutineExerciseForm, setEditingRoutineExerciseForm] = useState({});
   const [savingRoutineExercise, setSavingRoutineExercise] = useState(false);
@@ -864,6 +885,17 @@ function ModuleScreen({
       }),
     });
     setUserDetailError('');
+  };
+
+  const openRoutineExerciseDetails = (ejercicio) => {
+    setSelectedRoutineExerciseId(String(ejercicio?.rutinaEjercicioId || ''));
+    setEditingRoutineExerciseId('');
+    setEditingRoutineExerciseForm({});
+    setUserDetailError('');
+  };
+
+  const closeRoutineExerciseDetails = () => {
+    setSelectedRoutineExerciseId('');
   };
 
   const closeEditRoutineExercise = () => {
@@ -1944,19 +1976,106 @@ function ModuleScreen({
                                               </button>
                                             </div>
                                           </div>
+                                        ) : String(selectedRoutineExerciseId) === String(ejercicio.rutinaEjercicioId) ? (
+                                          <div className="exercise-header exercise-header--details">
+                                            <div className="exercise-info">
+                                              <strong>{ejercicio.ejercicioNombre || 'Ejercicio sin nombre'}</strong>
+                                              <span>
+                                                #{ejercicio.orden || '-'} · {ejercicio.series || '-'} series · {ejercicio.tiempoSegundos ? formatSecondsDisplay(ejercicio.tiempoSegundos) : `${ejercicio.repeticiones || '-'} repeticiones`}
+                                              </span>
+                                              <small>
+                                                Carga: {ejercicio.carga || '-'} · Descanso: {formatSecondsDisplay(ejercicio.descansoSegundos)} · Completado: {formatDisplayValue(ejercicio.completada, 'completada')}
+                                              </small>
+                                              <small>
+                                                Notas: {ejercicio.notasEspecificas || '-'}
+                                              </small>
+                                              <small>
+                                                Calentamientos: {Array.isArray(ejercicio.calentamientos) && ejercicio.calentamientos.length > 0
+                                                  ? `${ejercicio.calentamientos.length} configurado${ejercicio.calentamientos.length === 1 ? '' : 's'}`
+                                                  : 'Sin calentamientos configurados'}
+                                              </small>
+
+                                              {(Array.isArray(ejercicio.calentamientos) && ejercicio.calentamientos.length > 0) && (
+                                                <div className="exercise-warmup-list">
+                                                  {ejercicio.calentamientos.map((calentamiento) => (
+                                                    <div key={calentamiento.calentamientoId || `${ejercicio.rutinaEjercicioId}-${calentamiento.orden}`} className="exercise-warmup-list__item">
+                                                      <strong>{calentamiento.orden ? `#${calentamiento.orden}` : 'Calentamiento'}</strong>
+                                                      <span>
+                                                        {calentamiento.duracionSegundos
+                                                          ? formatSecondsDisplay(calentamiento.duracionSegundos)
+                                                          : `${calentamiento.repeticiones || '-'} repeticiones`}
+                                                      </span>
+                                                      <small>Intensidad: {calentamiento.intensidad || '-'}</small>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </div>
+
+                                            <div className="user-routine-exercise-actions">
+                                              <button
+                                                type="button"
+                                                className="btn-action"
+                                                onClick={(event) => {
+                                                  event.stopPropagation();
+                                                  openEditRoutineExercise(ejercicio);
+                                                }}
+                                              >
+                                                Editar
+                                              </button>
+                                              <button
+                                                type="button"
+                                                className="btn-action"
+                                                onClick={(event) => {
+                                                  event.stopPropagation();
+                                                  closeRoutineExerciseDetails();
+                                                }}
+                                              >
+                                                Cerrar
+                                              </button>
+                                              <button
+                                                className={`exercise-toggle-btn ${ejercicio.completada ? 'active' : ''}`}
+                                                onClick={(event) => {
+                                                  event.stopPropagation();
+                                                  marcarEjercicioCompletado(ejercicio.rutinaEjercicioId);
+                                                }}
+                                                title={ejercicio.completada ? 'Marcar como no completada' : 'Marcar como completada'}
+                                              >
+                                                {ejercicio.completada ? '✓' : '○'}
+                                              </button>
+                                            </div>
+                                          </div>
                                         ) : (
                                           <div className="exercise-header">
                                             <div className="exercise-info">
                                               <strong>{ejercicio.ejercicioNombre || 'Ejercicio sin nombre'}</strong>
                                               <span>
-                                                #{ejercicio.orden || '-'} · {ejercicio.series || '-'} series · {ejercicio.tiempoSegundos ? `${ejercicio.tiempoSegundos}s` : `${ejercicio.repeticiones || '-'} repeticiones`}
+                                                #{ejercicio.orden || '-'} · {ejercicio.series || '-'} series · {ejercicio.tiempoSegundos ? formatSecondsDisplay(ejercicio.tiempoSegundos) : `${ejercicio.repeticiones || '-'} repeticiones`}
                                               </span>
                                               <small>
-                                                Carga: {ejercicio.carga || '-'} · Completado: {formatDisplayValue(ejercicio.completada, 'completada')} · Notas: {ejercicio.notasEspecificas || '-'}
+                                                Carga: {ejercicio.carga || '-'} · Descanso: {formatSecondsDisplay(ejercicio.descansoSegundos)} · Completado: {formatDisplayValue(ejercicio.completada, 'completada')}
+                                              </small>
+                                              <small>
+                                                Notas: {ejercicio.notasEspecificas || '-'}
+                                              </small>
+                                              <small>
+                                                Calentamientos: {Array.isArray(ejercicio.calentamientos) && ejercicio.calentamientos.length > 0
+                                                  ? `${ejercicio.calentamientos.length} configurado${ejercicio.calentamientos.length === 1 ? '' : 's'}`
+                                                  : 'Sin calentamientos configurados'}
                                               </small>
                                             </div>
 
                                             <div className="user-routine-exercise-actions">
+                                              <button
+                                                type="button"
+                                                className="btn-action"
+                                                onClick={(event) => {
+                                                  event.stopPropagation();
+                                                  openRoutineExerciseDetails(ejercicio);
+                                                }}
+                                              >
+                                                Ver detalle
+                                              </button>
                                               <button
                                                 type="button"
                                                 className="btn-action"
@@ -1986,10 +2105,12 @@ function ModuleScreen({
                         </details>
                       ))
                     ) : (
-                      <span className="plan-builder-empty">Este usuario no tiene rutinas asignadas.</span>
+                      <p className="plan-builder-empty">Este usuario no tiene rutinas asignadas.</p>
                     )}
                   </div>
                 )}
+
+                {!userDetailLoading && userDetailError && null}
               </>
             )}
 
