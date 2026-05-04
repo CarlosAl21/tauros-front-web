@@ -36,6 +36,46 @@ if (!fs.existsSync(buildPath)) {
   process.exit(1);
 }
 
+// Middleware de headers de seguridad
+app.use((req, res, next) => {
+  // Content Security Policy (CSP)
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; " +
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://fonts.googleapis.com; " +
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; " +
+    "font-src 'self' https://fonts.gstatic.com; " +
+    "img-src 'self' data: https: blob:; " +
+    "connect-src 'self' https: wss:; " +
+    "frame-ancestors 'none'; " +
+    "base-uri 'self'; " +
+    "form-action 'self'"
+  );
+
+  // Anti-Clickjacking
+  res.setHeader('X-Frame-Options', 'DENY');
+
+  // Prevent MIME type sniffing
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+
+  // XSS Protection
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+
+  // Referrer Policy
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+  // Permissions Policy
+  res.setHeader(
+    'Permissions-Policy',
+    'geolocation=(), microphone=(), camera=(), payment=(), usb=(), magnetometer=(), gyroscope=(), accelerometer=()'
+  );
+
+  // HSTS (HTTP Strict Transport Security)
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubdomains; preload');
+
+  next();
+});
+
 // Servir archivos estáticos desde la carpeta build
 // Esto incluye CSS, JS, imágenes, favicon, manifest, etc.
 app.use(express.static(buildPath, {
