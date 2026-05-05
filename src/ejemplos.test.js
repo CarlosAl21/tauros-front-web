@@ -149,6 +149,9 @@ const UsuarioProfileComponent = ({ usuarioId }) => {
     const fetchUsuario = async () => {
       setIsLoading(true);
       try {
+        // Simular latencia de red (importante para que la prueba vea "Cargando...")
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         // Simulación de API call
         const mockResponse = {
           userId: usuarioId,
