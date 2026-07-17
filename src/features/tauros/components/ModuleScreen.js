@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatDisplayValue, getInputConstraints, getInputType, isOptionalField, resolveValue } from '../utils/form';
 import { normalizeVideoUrl } from '../utils/cloudinary';
+import { convertValueToUnit, secondsToInputValue, toSeconds } from '../utils/restTime';
 import { apiRequest } from '../services/api';
 import MuscleSelector, { MUSCLE_GROUPS, CANVAS_BACKGROUND } from './MuscleSelector';
 import MachineSelector from './MachineSelector';
@@ -9,19 +10,6 @@ import PlanNutricionalScreen from './PlanNutricionalScreen';
 
 function isFileLike(value) {
   return typeof File !== 'undefined' && value instanceof File;
-}
-
-function secondsToInputValue(seconds) {
-  const parsed = Number(seconds);
-  if (!Number.isFinite(parsed) || parsed < 1) {
-    return { value: '1', unit: 'seconds' };
-  }
-
-  if (parsed >= 60 && parsed % 60 === 0) {
-    return { value: String(parsed / 60), unit: 'minutes' };
-  }
-
-  return { value: String(parsed), unit: 'seconds' };
 }
 
 function formatSecondsDisplay(seconds) {
@@ -42,35 +30,6 @@ function formatSecondsDisplay(seconds) {
   }
 
   return `${parsed} ${parsed === 1 ? 'segundo' : 'segundos'}`;
-}
-
-function toSeconds(value, unit = 'seconds', fallback = 1) {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 1) {
-    return fallback;
-  }
-
-  return unit === 'minutes' ? Math.trunc(parsed * 60) : Math.trunc(parsed);
-}
-
-// Al tocar el selector de unidad (segundos/minutos), el numero que ya estaba
-// escrito tiene que convertirse a la unidad nueva -- si no, "60" con
-// "Segundos" pasa a interpretarse como "60" con "Minutos" (3600 segundos) en
-// vez de "1" minuto, que es lo que de verdad representan esos 60 segundos.
-function convertValueToUnit(value, fromUnit, toUnit) {
-  if (fromUnit === toUnit) {
-    return value;
-  }
-
-  const parsed = Number(value);
-  if (!value || !Number.isFinite(parsed) || parsed < 1) {
-    return value;
-  }
-
-  const totalSeconds = fromUnit === 'minutes' ? parsed * 60 : parsed;
-  const converted = toUnit === 'minutes' ? totalSeconds / 60 : totalSeconds;
-
-  return String(Math.max(1, Math.round(converted)));
 }
 
 async function compressVideoFile(file) {

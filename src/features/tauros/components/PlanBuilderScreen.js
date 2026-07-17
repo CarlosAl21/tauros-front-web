@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest } from '../services/api';
+import { convertValueToUnit, secondsToInputValue, toSeconds } from '../utils/restTime';
 
 function resolveId(candidate) {
   if (!candidate) {
@@ -78,48 +79,6 @@ function toPositiveInteger(value, fallback = 1) {
   }
 
   return Math.trunc(parsed);
-}
-
-function toSeconds(value, unit = 'seconds', fallback = 60) {
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 1) {
-    return fallback;
-  }
-
-  return unit === 'minutes' ? Math.trunc(parsed * 60) : Math.trunc(parsed);
-}
-
-function secondsToInputValue(seconds) {
-  const parsed = Number(seconds);
-  if (!Number.isFinite(parsed) || parsed < 1) {
-    return { value: '60', unit: 'seconds' };
-  }
-
-  if (parsed >= 60 && parsed % 60 === 0) {
-    return { value: String(parsed / 60), unit: 'minutes' };
-  }
-
-  return { value: String(parsed), unit: 'seconds' };
-}
-
-// Al tocar el selector de unidad (segundos/minutos), el numero que ya estaba
-// escrito tiene que convertirse a la unidad nueva -- si no, "60" con
-// "Segundos" pasa a interpretarse como "60" con "Minutos" (3600 segundos) en
-// vez de "1" minuto, que es lo que de verdad representan esos 60 segundos.
-export function convertValueToUnit(value, fromUnit, toUnit) {
-  if (fromUnit === toUnit) {
-    return value;
-  }
-
-  const parsed = Number(value);
-  if (!value || !Number.isFinite(parsed) || parsed < 1) {
-    return value;
-  }
-
-  const totalSeconds = fromUnit === 'minutes' ? parsed * 60 : parsed;
-  const converted = toUnit === 'minutes' ? totalSeconds / 60 : totalSeconds;
-
-  return String(Math.max(1, Math.round(converted)));
 }
 
 function buildWarmupDraft(item) {

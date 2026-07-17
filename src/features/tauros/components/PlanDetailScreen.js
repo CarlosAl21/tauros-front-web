@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { apiRequest } from '../services/api';
+import { convertValueToUnit, secondsToInputValue, toSeconds } from '../utils/restTime';
 
 function PlanDetailScreen({ plan, loading, token, onUpdate }) {
   const [editingExerciseId, setEditingExerciseId] = useState(null);
@@ -20,12 +21,19 @@ function PlanDetailScreen({ plan, loading, token, onUpdate }) {
     .sort((left, right) => Number(left?.numeroDia || 0) - Number(right?.numeroDia || 0));
 
   const startEdit = (exercise) => {
+    const hasTiempo = exercise.tiempoSegundos !== undefined && exercise.tiempoSegundos !== null;
+    const hasDescanso = exercise.descansoSegundos !== undefined && exercise.descansoSegundos !== null;
+    const tiempoValues = hasTiempo ? secondsToInputValue(exercise.tiempoSegundos) : null;
+    const descansoValues = hasDescanso ? secondsToInputValue(exercise.descansoSegundos) : null;
+
     setEditingExerciseId(exercise.rutinaEjercicioId);
     setEditForm({
       series: String(exercise.series || ''),
       repeticiones: exercise.repeticiones ? String(exercise.repeticiones) : '',
-      tiempoSegundos: exercise.tiempoSegundos ? String(exercise.tiempoSegundos) : '',
-      descansoSegundos: exercise.descansoSegundos ? String(exercise.descansoSegundos) : '',
+      tiempoValor: tiempoValues?.value || '',
+      tiempoUnidad: tiempoValues?.unit || 'seconds',
+      descansoValor: descansoValues?.value || '',
+      descansoUnidad: descansoValues?.unit || 'seconds',
       carga: String(exercise.carga || ''),
       notasEspecificas: String(exercise.notasEspecificas || ''),
     });
@@ -50,8 +58,12 @@ function PlanDetailScreen({ plan, loading, token, onUpdate }) {
       const payload = {};
       if (editForm.series) payload.series = Number(editForm.series);
       if (editForm.repeticiones) payload.repeticiones = Number(editForm.repeticiones);
-      if (editForm.tiempoSegundos) payload.tiempoSegundos = Number(editForm.tiempoSegundos);
-      if (editForm.descansoSegundos) payload.descansoSegundos = Number(editForm.descansoSegundos);
+      if (editForm.tiempoValor) {
+        payload.tiempoSegundos = toSeconds(editForm.tiempoValor, editForm.tiempoUnidad || 'seconds');
+      }
+      if (editForm.descansoValor) {
+        payload.descansoSegundos = toSeconds(editForm.descansoValor, editForm.descansoUnidad || 'seconds');
+      }
       if (editForm.carga) payload.carga = editForm.carga;
       if (editForm.notasEspecificas) payload.notasEspecificas = editForm.notasEspecificas;
 
@@ -147,22 +159,56 @@ function PlanDetailScreen({ plan, loading, token, onUpdate }) {
                               />
                             </label>
                             <label>
-                              Tiempo (seg)
+                              Tiempo
                               <input
                                 type="number"
-                                min="0"
-                                value={editForm.tiempoSegundos || ''}
-                                onChange={(e) => setEditForm({ ...editForm, tiempoSegundos: e.target.value })}
+                                min="1"
+                                value={editForm.tiempoValor || ''}
+                                onChange={(e) => setEditForm({ ...editForm, tiempoValor: e.target.value })}
                               />
                             </label>
                             <label>
-                              Descanso (seg)
+                              Unidad (tiempo)
+                              <select
+                                value={editForm.tiempoUnidad || 'seconds'}
+                                onChange={(e) => {
+                                  const nextUnit = e.target.value;
+                                  setEditForm((current) => ({
+                                    ...current,
+                                    tiempoValor: convertValueToUnit(current.tiempoValor, current.tiempoUnidad || 'seconds', nextUnit),
+                                    tiempoUnidad: nextUnit,
+                                  }));
+                                }}
+                              >
+                                <option value="seconds">Segundos</option>
+                                <option value="minutes">Minutos</option>
+                              </select>
+                            </label>
+                            <label>
+                              Descanso
                               <input
                                 type="number"
-                                min="0"
-                                value={editForm.descansoSegundos || ''}
-                                onChange={(e) => setEditForm({ ...editForm, descansoSegundos: e.target.value })}
+                                min="1"
+                                value={editForm.descansoValor || ''}
+                                onChange={(e) => setEditForm({ ...editForm, descansoValor: e.target.value })}
                               />
+                            </label>
+                            <label>
+                              Unidad (descanso)
+                              <select
+                                value={editForm.descansoUnidad || 'seconds'}
+                                onChange={(e) => {
+                                  const nextUnit = e.target.value;
+                                  setEditForm((current) => ({
+                                    ...current,
+                                    descansoValor: convertValueToUnit(current.descansoValor, current.descansoUnidad || 'seconds', nextUnit),
+                                    descansoUnidad: nextUnit,
+                                  }));
+                                }}
+                              >
+                                <option value="seconds">Segundos</option>
+                                <option value="minutes">Minutos</option>
+                              </select>
                             </label>
                           </div>
                           <div className="plan-day-exercise__form-row">
