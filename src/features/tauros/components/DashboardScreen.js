@@ -46,8 +46,8 @@ function DashboardScreen({ metrics, dashboardData, insights }) {
             <article className="opportunities-card">
               <h2>Oportunidades de Mejora</h2>
               <div className="opportunities-list">
-                {insights.oportunidades.map((oportunidad, idx) => (
-                  <div key={idx} className="opportunity-item">
+                {insights.oportunidades.map((oportunidad) => (
+                  <div key={oportunidad} className="opportunity-item">
                     <span className="opportunity-icon">⚠️</span>
                     <span className="opportunity-text">{oportunidad}</span>
                   </div>
@@ -64,7 +64,7 @@ function DashboardScreen({ metrics, dashboardData, insights }) {
             <h2>Top 10 Ejercicios Más Usados</h2>
             <div className="stats-list">
               {Array.isArray(insights.ejerciciosPopulares.ejercicios) && insights.ejerciciosPopulares.ejercicios.slice(0, 10).map((ejercicio, idx) => (
-                <div key={idx} className="stat-row">
+                <div key={ejercicio.id ?? idx} className="stat-row">
                   <span className="stat-rank">{idx + 1}</span>
                   <span className="stat-name">{ejercicio.nombre}</span>
                   <span className="stat-count">{ejercicio.cantidad}x</span>
@@ -77,7 +77,7 @@ function DashboardScreen({ metrics, dashboardData, insights }) {
             <h2>Categorías Populares</h2>
             <div className="stats-list">
               {Array.isArray(insights.ejerciciosPopulares.categorias) && insights.ejerciciosPopulares.categorias.slice(0, 5).map((cat, idx) => (
-                <div key={idx} className="stat-row">
+                <div key={cat.id ?? idx} className="stat-row">
                   <span className="stat-rank">{idx + 1}</span>
                   <span className="stat-name">{cat.nombre}</span>
                   <span className="stat-count">{cat.cantidad}x</span>
@@ -90,7 +90,7 @@ function DashboardScreen({ metrics, dashboardData, insights }) {
             <h2>Tipos de Ejercicio</h2>
             <div className="stats-list">
               {Array.isArray(insights.ejerciciosPopulares.tipos) && insights.ejerciciosPopulares.tipos.slice(0, 5).map((tipo, idx) => (
-                <div key={idx} className="stat-row">
+                <div key={tipo.id ?? idx} className="stat-row">
                   <span className="stat-rank">{idx + 1}</span>
                   <span className="stat-name">{tipo.nombre}</span>
                   <span className="stat-count">{tipo.cantidad}x</span>

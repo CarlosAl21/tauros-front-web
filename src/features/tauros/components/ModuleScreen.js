@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { formatDisplayValue, getInputType, isOptionalField, resolveValue } from '../utils/form';
+import { formatDisplayValue, getInputConstraints, getInputType, isOptionalField, resolveValue } from '../utils/form';
 import { apiRequest } from '../services/api';
 import MuscleSelector, { MUSCLE_GROUPS } from './MuscleSelector';
 import MachineSelector from './MachineSelector';
@@ -2149,7 +2149,7 @@ function ModuleScreen({
                       <div className="analysis-list">
                         {Array.isArray(userStatsData.ejerciciosFrequencia) && userStatsData.ejerciciosFrequencia.length > 0 ? (
                           userStatsData.ejerciciosFrequencia.map((ej, idx) => (
-                            <div key={idx} className="analysis-row">
+                            <div key={ej.id ?? idx} className="analysis-row">
                               <span className="rank">#{idx + 1}</span>
                               <span className="name">{ej.nombre}</span>
                               <span className="stats">
@@ -2168,7 +2168,7 @@ function ModuleScreen({
                       <div className="analysis-list">
                         {Array.isArray(userStatsData.categoriasFavoritas) && userStatsData.categoriasFavoritas.length > 0 ? (
                           userStatsData.categoriasFavoritas.map((cat, idx) => (
-                            <div key={idx} className="analysis-row">
+                            <div key={cat.id ?? idx} className="analysis-row">
                               <span className="rank">#{idx + 1}</span>
                               <span className="name">{cat.nombre}</span>
                               <span className="stats">{cat.cantidad}x</span>
@@ -2603,6 +2603,8 @@ function ModuleScreen({
                 );
               }
 
+              const constraints = getInputConstraints(field);
+
               return (
                 <label key={field}>
                   {formatLabel(field)}
@@ -2611,6 +2613,7 @@ function ModuleScreen({
                     value={createForm[field] ?? ''}
                     onChange={(event) => setCreateForm((current) => ({ ...current, [field]: event.target.value }))}
                     required={required}
+                    {...constraints}
                   />
                 </label>
               );

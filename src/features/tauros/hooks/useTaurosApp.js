@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MODULE_MAP } from '../config/modules';
-import { apiRequest } from '../services/api';
+import { apiRequest, TAUROS_USER_KEY } from '../services/api';
 import { uploadDirectlyToCloudinary } from '../services/cloudinary';
 import { buildFormFromRecord, buildInitialForm, normalizePayload } from '../utils/form';
 
@@ -28,11 +28,17 @@ export function useTaurosApp() {
   const [selectedId, setSelectedId] = useState('');
   const [formMode, setFormMode] = useState('closed');
 
-  const [token, setToken] = useState(() => localStorage.getItem('tauros_token') || '');
   const [user, setUser] = useState(() => {
-    const raw = localStorage.getItem('tauros_user');
+    const raw = localStorage.getItem(TAUROS_USER_KEY);
     return raw ? JSON.parse(raw) : null;
   });
+
+  // El JWT real vive en una cookie httpOnly que el navegador maneja solo; la
+  // app web nunca lo lee ni lo guarda (ni en localStorage ni en memoria).
+  // `token` se conserva solo como bandera derivada de "hay sesion activa"
+  // para no tener que tocar los componentes que ya la reciben como prop
+  // (rutas protegidas, gates de carga de datos, etc.).
+  const token = user ? 'session-cookie' : '';
 
   const [authForm, setAuthForm] = useState({
     correo: '',
@@ -71,15 +77,21 @@ export function useTaurosApp() {
   }, [activeModule]);
 
   useEffect(() => {
-    if (!token) {
+    if (!user) {
       return;
     }
 
-    localStorage.setItem('tauros_token', token);
-    if (user) {
-      localStorage.setItem('tauros_user', JSON.stringify(user));
-    }
-  }, [token, user]);
+    localStorage.setItem(TAUROS_USER_KEY, JSON.stringify(user));
+  }, [user]);
+
+  // api.js dispara este evento cuando /auth/refresh tambien devuelve 401
+  // (sesion expirada de verdad): ahi solo puede limpiar localStorage, asi que
+  // el estado en memoria (user) se limpia desde aca.
+  useEffect(() => {
+    const handleSessionExpired = () => setUser(null);
+    window.addEventListener('tauros:session-expired', handleSessionExpired);
+    return () => window.removeEventListener('tauros:session-expired', handleSessionExpired);
+  }, []);
 
   const loadCatalogs = useCallback(async () => {
     if (!token) {
@@ -606,15 +618,15 @@ export function useTaurosApp() {
       });
 
       if (!ALLOWED_ROLES.includes(response.user?.rol)) {
-        setToken('');
         setUser(null);
-        localStorage.removeItem('tauros_token');
-        localStorage.removeItem('tauros_user');
+        localStorage.removeItem(TAUROS_USER_KEY);
         setError('Solo admin o coach pueden ingresar al sistema');
         return;
       }
 
-      setToken(response.access_token);
+      // El body sigue trayendo access_token/refresh_token por compatibilidad
+      // con la app movil, pero la web ya no los guarda: el backend ya seteo
+      // las cookies httpOnly correspondientes.
       setUser(response.user);
       setAuthForm({
         correo: '',
@@ -632,14 +644,17 @@ export function useTaurosApp() {
   };
 
   const handleLogout = () => {
-    setToken('');
+    // Revocar la sesion en el backend (best-effort): limpia las cookies
+    // httpOnly del lado del servidor. Si falla, el logout local sigue
+    // adelante igual, como hace la app movil.
+    apiRequest('/auth/logout', '', { method: 'POST' }).catch(() => {});
+
     setUser(null);
     setRecords([]);
     setDashboardData(EMPTY_DASHBOARD);
     setError('');
     setSuccess('');
-    localStorage.removeItem('tauros_token');
-    localStorage.removeItem('tauros_user');
+    localStorage.removeItem(TAUROS_USER_KEY);
   };
 
   const getOptionsForField = (field) => {

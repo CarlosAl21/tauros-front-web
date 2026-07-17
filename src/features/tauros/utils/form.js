@@ -276,6 +276,43 @@ export function isOptionalField(field) {
   return field === 'maquinaId' || field === 'linkVideo' || field === 'linkAM' || field === 'linkFoto' || field === 'usuarioId';
 }
 
+// Mismas reglas de formato que usa la app movil (ver
+// ../../../../Tauros-Movil/lib/validators.ts) para que cedula/RUC, telefono y
+// password no queden desincronizados entre plataformas.
+const ECUADOR_ID_PATTERN = '[0-9]{10}([0-9]{3})?';
+const ECUADOR_PHONE_PATTERN = '09[0-9]{8}';
+
+export function getInputConstraints(field) {
+  if (field === 'cedula') {
+    return {
+      pattern: ECUADOR_ID_PATTERN,
+      minLength: 10,
+      maxLength: 13,
+      inputMode: 'numeric',
+      title: 'Cedula (10 digitos) o RUC (13 digitos) valido',
+    };
+  }
+
+  if (field === 'telefono') {
+    return {
+      pattern: ECUADOR_PHONE_PATTERN,
+      minLength: 10,
+      maxLength: 10,
+      inputMode: 'numeric',
+      title: 'Celular ecuatoriano: empieza con 09 y tiene 10 digitos',
+    };
+  }
+
+  if (field === 'password') {
+    return {
+      minLength: 6,
+      title: 'Minimo 6 caracteres',
+    };
+  }
+
+  return {};
+}
+
 export function getInputType(field) {
   if (field === 'fechaHora') {
     return 'datetime-local';
