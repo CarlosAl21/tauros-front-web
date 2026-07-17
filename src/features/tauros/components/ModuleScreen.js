@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { formatDisplayValue, getInputConstraints, getInputType, isOptionalField, resolveValue } from '../utils/form';
 import { normalizeVideoUrl } from '../utils/cloudinary';
 import { apiRequest } from '../services/api';
-import MuscleSelector, { MUSCLE_GROUPS } from './MuscleSelector';
+import MuscleSelector, { MUSCLE_GROUPS, CANVAS_BACKGROUND } from './MuscleSelector';
 import MachineSelector from './MachineSelector';
 import PlanNutricionalScreen from './PlanNutricionalScreen';
 
@@ -197,7 +197,7 @@ async function exportMuscleSvgToFile(svgElements) {
     return null;
   }
 
-  context.fillStyle = '#3a3a3a';
+  context.fillStyle = CANVAS_BACKGROUND;
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.drawImage(frontImage, 0, 0, 200, 400);
   context.drawImage(backImage, 200, 0, 200, 400);

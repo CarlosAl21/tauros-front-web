@@ -30,8 +30,14 @@ export const MUSCLE_GROUPS = [
   { id: 'head', label: 'Cabeza' },
 ];
 
-const BODY_COLOR = '#3a3a3a';
+// Gris que contrasta contra fondo blanco (si coincidieran, el cuerpo se
+// vuelve invisible en la imagen exportada y solo se verian los musculos
+// en rojo flotando, sin contexto anatomico).
+const BODY_COLOR = '#b6bdc3';
 const HIGHLIGHT_COLOR = '#ff3b3b';
+// Exportado para que ModuleScreen use el mismo fondo al rasterizar la
+// imagen que se sube a Cloudinary (si no coinciden, vuelve el bug de arriba).
+export const CANVAS_BACKGROUND = '#ffffff';
 
 const MuscleSelector = forwardRef(({ selectedMuscles = [], onToggleMuscle }, ref) => {
   const frontContainerRef = useRef(null);
@@ -51,7 +57,7 @@ const MuscleSelector = forwardRef(({ selectedMuscles = [], onToggleMuscle }, ref
   const handleClick = ({ muscle }) => onToggleMuscle(muscle);
 
   return (
-    <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap', background: '#1a1a1a', borderRadius: '12px', padding: '16px' }}>
+    <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', flexWrap: 'wrap', background: CANVAS_BACKGROUND, borderRadius: '12px', padding: '16px' }}>
       <div ref={frontContainerRef}>
         <Model
           type="anterior"
