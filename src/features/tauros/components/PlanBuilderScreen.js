@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest } from '../services/api';
-import { convertValueToUnit, secondsToInputValue, toSeconds } from '../utils/restTime';
+import { formatSecondsHint, toPositiveSeconds } from '../utils/restTime';
 
 function resolveId(candidate) {
   if (!candidate) {
@@ -82,11 +82,16 @@ function toPositiveInteger(value, fallback = 1) {
 }
 
 function buildWarmupDraft(item) {
+  if (item?.mode !== undefined) {
+    // Ya es un draft normalizado (se esta reusando, no viene crudo del
+    // backend) -- se devuelve tal cual, sin volver a derivar nada.
+    return item;
+  }
+
   const hasDuration = item?.duracionSegundos !== undefined && item?.duracionSegundos !== null;
   return {
     mode: hasDuration ? 'time' : 'reps',
     valor: String(hasDuration ? item.duracionSegundos : (item?.repeticiones ?? 10)),
-    unidad: 'seconds',
     intensidad: String(item?.intensidad || 'baja'),
   };
 }
@@ -128,27 +133,37 @@ function getDayExerciseSource(day, rutinaEjercicios) {
   });
 }
 
+// Convierte un rutina-ejercicio crudo del backend (o un draft ya normalizado
+// -- ver comentario abajo) al formato que edita el formulario. Los campos de
+// tiempo/descanso viven SIEMPRE en segundos, en un unico campo -- no hay
+// "valor" + "unidad" separados que puedan desincronizarse entre si.
+//
+// Esta funcion tiene que poder llamarse de forma segura sobre CUALQUIERA de
+// las dos formas de dato (crudo del backend, o un draft que ya paso por
+// aca antes): antes, cuando el dato tenia forma {valor, unidad}, volver a
+// llamarla sobre un draft ya normalizado perdia o corrompia el descanso
+// especifico de cada ejercicio al navegar entre dias del asistente. Con un
+// solo campo (tiempoSegundos/descansoSegundos, mismo nombre en las dos
+// formas) y preservando executionMode/descansoMode si ya vienen definidos,
+// llamarla una segunda vez sobre un draft ya normalizado no cambia nada.
 function buildDraftExercise(item, exercisesById, fallbackSeries, fallbackRepetitions) {
   const ejercicioId = String(item?.ejercicio?.ejercicioId || item?.ejercicioId || '');
   if (!ejercicioId) {
     return null;
   }
 
-  const hasTime = item?.tiempoSegundos !== undefined && item?.tiempoSegundos !== null;
-  const hasSpecificRest = item?.descansoSegundos !== undefined && item?.descansoSegundos !== null;
-  const restValues = secondsToInputValue(item?.descansoSegundos ?? 60);
+  const hasTime = item?.tiempoSegundos !== undefined && item?.tiempoSegundos !== null && item?.tiempoSegundos !== '';
+  const hasSpecificRest = item?.descansoSegundos !== undefined && item?.descansoSegundos !== null && item?.descansoSegundos !== '';
 
   return {
     ejercicioId,
     ejercicio: item?.ejercicio || exercisesById.get(ejercicioId) || null,
     series: String(item?.series ?? fallbackSeries),
-    executionMode: hasTime ? 'time' : 'reps',
+    executionMode: item?.executionMode || (hasTime ? 'time' : 'reps'),
     repeticiones: String(item?.repeticiones ?? fallbackRepetitions),
-    tiempoValor: String(hasTime ? item.tiempoSegundos : 60),
-    tiempoUnidad: 'seconds',
-    descansoMode: hasSpecificRest ? 'specific' : 'general',
-    descansoValor: hasSpecificRest ? restValues.value : '',
-    descansoUnidad: hasSpecificRest ? restValues.unit : 'seconds',
+    tiempoSegundos: hasTime ? String(item.tiempoSegundos) : '60',
+    descansoMode: item?.descansoMode || (hasSpecificRest ? 'specific' : 'general'),
+    descansoSegundos: hasSpecificRest ? String(item.descansoSegundos) : '',
     calentamientos: Array.isArray(item?.calentamientos)
       ? item.calentamientos.map((cal) => buildWarmupDraft(cal))
       : [],
@@ -183,6 +198,28 @@ function buildDraftForDay(day, rutinaEjercicios, exercisesById, fallbackSeries, 
   };
 }
 
+function SecondsField({ label, value, onChange, placeholder }) {
+  // El texto de ayuda ("~ 1 min") va afuera del <label>, no adentro: si
+  // quedara adentro se concatenaria al nombre accesible del input (lectores
+  // de pantalla leerian "Descanso general (segundos) approx 1 min" como si
+  // fuera parte del label), y ademas cambiaria en cada tecla.
+  return (
+    <span className="plan-builder-seconds-field">
+      <label>
+        {label}
+        <input
+          type="number"
+          min="1"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+        />
+      </label>
+      {formatSecondsHint(value) && <small className="plan-builder-seconds-hint">{formatSecondsHint(value)}</small>}
+    </span>
+  );
+}
+
 function PlanBuilderScreen({
   token,
   plans,
@@ -203,8 +240,7 @@ function PlanBuilderScreen({
   const [dayDrafts, setDayDrafts] = useState({});
   const [draftSeedPlanId, setDraftSeedPlanId] = useState('');
   const [dayDescription, setDayDescription] = useState('');
-  const [dayRestValue, setDayRestValue] = useState('60');
-  const [dayRestUnit, setDayRestUnit] = useState('seconds');
+  const [dayRestSeconds, setDayRestSeconds] = useState('60');
   const [exerciseSearch, setExerciseSearch] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState('');
   const [selectedTypeId, setSelectedTypeId] = useState('');
@@ -226,8 +262,7 @@ function PlanBuilderScreen({
   const [defaultSeries, setDefaultSeries] = useState('3');
   const [defaultExecutionMode, setDefaultExecutionMode] = useState('reps');
   const [defaultRepetitions, setDefaultRepetitions] = useState('12');
-  const [defaultTimeValue, setDefaultTimeValue] = useState('60');
-  const [defaultTimeUnit, setDefaultTimeUnit] = useState('seconds');
+  const [defaultTimeSeconds, setDefaultTimeSeconds] = useState('60');
   const defaultSeriesRef = useRef(defaultSeries);
   const defaultRepetitionsRef = useRef(defaultRepetitions);
   const [isDropZoneActive, setIsDropZoneActive] = useState(false);
@@ -362,8 +397,7 @@ function PlanBuilderScreen({
           series: defaultSeries,
           executionMode: 'time',
           repeticiones: '',
-          tiempoValor: defaultTimeValue,
-          tiempoUnidad: defaultTimeUnit,
+          tiempoSegundos: defaultTimeSeconds,
         };
       }
 
@@ -372,11 +406,11 @@ function PlanBuilderScreen({
         series: defaultSeries,
         executionMode: 'reps',
         repeticiones: defaultRepetitions,
-        tiempoValor: item.tiempoValor || '60',
-        tiempoUnidad: item.tiempoUnidad || 'seconds',
+        tiempoSegundos: item.tiempoSegundos || '60',
       };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }));
-  }, [defaultExecutionMode, defaultRepetitions, defaultSeries, defaultTimeUnit, defaultTimeValue, selectedExerciseDrafts.length]);
+  }, [defaultExecutionMode, defaultRepetitions, defaultSeries, defaultTimeSeconds, selectedExerciseDrafts.length]);
 
   const ejerciciosDelDia = useMemo(() => selectedDayDraft?.exercises || [], [selectedDayDraft]);
 
@@ -452,9 +486,7 @@ function PlanBuilderScreen({
       setSelectedRutinaDiaId(String(firstDay.rutinaDiaId));
       const firstDraft = initialDrafts[String(firstDay.rutinaDiaId)];
       setDayDescription(firstDraft?.descripcion || firstDay.descripcion || `Dia ${firstDay.numeroDia}`);
-      const restValues = secondsToInputValue(firstDraft?.descansoSegundos || firstDay.descansoSegundos || 60);
-      setDayRestValue(restValues.value);
-      setDayRestUnit(restValues.unit);
+      setDayRestSeconds(String(firstDraft?.descansoSegundos || firstDay.descansoSegundos || 60));
       setSelectedExerciseDrafts(firstDraft?.exercises || []);
     }
   }, [
@@ -489,9 +521,7 @@ function PlanBuilderScreen({
     );
 
     setDayDescription(draft.descripcion || selectedRutinaDia.descripcion || `Dia ${selectedRutinaDia.numeroDia}`);
-    const restValues = secondsToInputValue(draft.descansoSegundos || selectedRutinaDia.descansoSegundos || 60);
-    setDayRestValue(restValues.value);
-    setDayRestUnit(restValues.unit);
+    setDayRestSeconds(String(draft.descansoSegundos || selectedRutinaDia.descansoSegundos || 60));
     setSelectedExerciseDrafts(draft.exercises || []);
   }, [
     creationPhase,
@@ -513,8 +543,7 @@ function PlanBuilderScreen({
     setSelectedExerciseDrafts([]);
     setDayDrafts({});
     setDraftSeedPlanId('');
-    setDayRestValue('60');
-    setDayRestUnit('seconds');
+    setDayRestSeconds('60');
     setPlanForm({ nombre: '', descripcion: '', duracionDias: '', objetivo: '' });
   };
 
@@ -528,34 +557,33 @@ function PlanBuilderScreen({
     setDayDrafts({});
     setDraftSeedPlanId('');
     setDayDescription('');
-    setDayRestValue('60');
-    setDayRestUnit('seconds');
+    setDayRestSeconds('60');
     setExerciseSearch('');
     setSelectedCategoryId('');
     setSelectedTypeId('');
   };
 
+  // Los ejercicios que llegan aca (selectedExerciseDrafts por defecto) YA
+  // estan en formato draft normalizado -- no hay que volver a pasarlos por
+  // buildDraftExercise (eso era justo lo que rompia el descanso especifico
+  // al navegar entre dias: esa funcion esta pensada para normalizar datos
+  // CRUDOS del backend, no para re-normalizar un draft que ya lo esta).
   const persistCurrentDayDraft = (
     dayId = selectedRutinaDiaId,
     description = dayDescription,
-    descansoValue = dayRestValue,
-    descansoUnit = dayRestUnit,
+    descansoSeconds = dayRestSeconds,
     exercises = selectedExerciseDrafts,
   ) => {
     if (!dayId) {
       return;
     }
 
-    const normalizedExercises = exercises
-      .map((item) => buildDraftExercise(item, exercisesById, defaultSeries, defaultRepetitions))
-      .filter(Boolean);
-
     setDayDrafts((current) => ({
       ...current,
       [String(dayId)]: {
         descripcion: description,
-        descansoSegundos: String(toSeconds(descansoValue, descansoUnit, 60)),
-        exercises: normalizedExercises,
+        descansoSegundos: String(toPositiveSeconds(descansoSeconds, 60)),
+        exercises,
       },
     }));
   };
@@ -565,7 +593,7 @@ function PlanBuilderScreen({
     if (selectedRutinaDiaId) {
       snapshot[String(selectedRutinaDiaId)] = {
         descripcion: dayDescription,
-        descansoSegundos: String(toSeconds(dayRestValue, dayRestUnit, 60)),
+        descansoSegundos: String(toPositiveSeconds(dayRestSeconds, 60)),
         exercises: selectedExerciseDrafts,
       };
     }
@@ -597,7 +625,7 @@ function PlanBuilderScreen({
             numeroDia: Number(day.numeroDia),
             nombre: day.nombre,
             descripcion: draft.descripcion || day.descripcion || `Dia ${day.numeroDia}`,
-            descansoSegundos: toSeconds(draft.descansoSegundos || dayRestValue, dayRestUnit, 60),
+            descansoSegundos: toPositiveSeconds(draft.descansoSegundos || dayRestSeconds, 60),
           }),
         });
 
@@ -614,11 +642,11 @@ function PlanBuilderScreen({
         for (const [index, draftExercise] of (draft.exercises || []).entries()) {
           const isTimeMode = draftExercise.executionMode === 'time' || defaultExecutionMode === 'time';
           const tiempoSegundos = isTimeMode
-            ? toSeconds(draftExercise.tiempoValor || defaultTimeValue, draftExercise.tiempoUnidad || defaultTimeUnit, 60)
+            ? toPositiveSeconds(draftExercise.tiempoSegundos || defaultTimeSeconds, 60)
             : null;
-          const generalRestSeconds = toSeconds(draft.descansoSegundos || dayRestValue, dayRestUnit, 60);
+          const generalRestSeconds = toPositiveSeconds(draft.descansoSegundos || dayRestSeconds, 60);
           const descansoSegundos = draftExercise.descansoMode === 'specific'
-            ? toSeconds(draftExercise.descansoValor || draft.descansoSegundos || dayRestValue, draftExercise.descansoUnidad || dayRestUnit, generalRestSeconds)
+            ? toPositiveSeconds(draftExercise.descansoSegundos || draft.descansoSegundos || dayRestSeconds, generalRestSeconds)
             : generalRestSeconds;
           const calentamientos = Array.isArray(draftExercise.calentamientos)
             ? draftExercise.calentamientos.map((warmup, warmupIndex) => {
@@ -627,7 +655,7 @@ function PlanBuilderScreen({
                 orden: warmupIndex + 1,
                 intensidad: warmup?.intensidad || 'baja',
                 repeticiones: isTimeWarmup ? null : toPositiveInteger(warmup?.valor, 10),
-                duracionSegundos: isTimeWarmup ? toSeconds(warmup?.valor, warmup?.unidad, 30) : null,
+                duracionSegundos: isTimeWarmup ? toPositiveSeconds(warmup?.valor, 30) : null,
               };
             })
             : [];
@@ -660,8 +688,7 @@ function PlanBuilderScreen({
       setDayDrafts({});
       setDraftSeedPlanId('');
       setDayDescription('');
-      setDayRestValue('60');
-      setDayRestUnit('seconds');
+      setDayRestSeconds('60');
       setExerciseSearch('');
       setSelectedCategoryId('');
       setSelectedTypeId('');
@@ -785,11 +812,9 @@ function PlanBuilderScreen({
           series: defaultSeries,
           executionMode: defaultExecutionMode,
           repeticiones: defaultRepetitions,
-          tiempoValor: defaultTimeValue,
-          tiempoUnidad: defaultTimeUnit,
+          tiempoSegundos: defaultTimeSeconds,
           descansoMode: 'general',
-          descansoValor: '',
-          descansoUnidad: dayRestUnit,
+          descansoSegundos: '',
           calentamientos: [],
         },
       ];
@@ -812,11 +837,9 @@ function PlanBuilderScreen({
           series: defaultSeries,
           executionMode: defaultExecutionMode,
           repeticiones: defaultRepetitions,
-          tiempoValor: defaultTimeValue,
-          tiempoUnidad: defaultTimeUnit,
+          tiempoSegundos: defaultTimeSeconds,
           descansoMode: 'general',
-          descansoValor: '',
-          descansoUnidad: dayRestUnit,
+          descansoSegundos: '',
           calentamientos: [],
         },
       ];
@@ -863,7 +886,7 @@ function PlanBuilderScreen({
         ...item,
         calentamientos: [
           ...(Array.isArray(item.calentamientos) ? item.calentamientos : []),
-          { mode: 'reps', valor: '10', unidad: 'seconds', intensidad: 'baja' },
+          { mode: 'reps', valor: '10', intensidad: 'baja' },
         ],
       };
     }));
@@ -1128,33 +1151,12 @@ function PlanBuilderScreen({
                     />
                   </label>
 
-                  <div className="plan-builder-rest-control">
-                    <label>
-                      Descanso general
-                      <input
-                        type="number"
-                        min="1"
-                        value={dayRestValue}
-                        onChange={(event) => setDayRestValue(event.target.value)}
-                        placeholder="60"
-                      />
-                    </label>
-
-                    <label>
-                      Unidad
-                      <select
-                        value={dayRestUnit}
-                        onChange={(event) => {
-                          const nextUnit = event.target.value;
-                          setDayRestValue((current) => convertValueToUnit(current, dayRestUnit, nextUnit));
-                          setDayRestUnit(nextUnit);
-                        }}
-                      >
-                        <option value="seconds">Segundos</option>
-                        <option value="minutes">Minutos</option>
-                      </select>
-                    </label>
-                  </div>
+                  <SecondsField
+                    label="Descanso general (segundos)"
+                    value={dayRestSeconds}
+                    onChange={setDayRestSeconds}
+                    placeholder="60"
+                  />
 
                   <button type="submit" className="btn-primary" disabled={loading || !selectedRutinaDia}>
                     {creationPlanDays.length && selectedRutinaDiaId === String(creationPlanDays[creationPlanDays.length - 1]?.rutinaDiaId)
@@ -1200,39 +1202,21 @@ function PlanBuilderScreen({
                     </select>
                   </label>
 
-                  <label>
-                    {defaultExecutionMode === 'time' ? 'Tiempo por defecto' : 'Repeticiones por defecto'}
-                    {defaultExecutionMode === 'time' ? (
-                      <input
-                        type="number"
-                        min="1"
-                        value={defaultTimeValue}
-                        onChange={(event) => setDefaultTimeValue(event.target.value)}
-                      />
-                    ) : (
+                  {defaultExecutionMode === 'time' ? (
+                    <SecondsField
+                      label="Tiempo por defecto (segundos)"
+                      value={defaultTimeSeconds}
+                      onChange={setDefaultTimeSeconds}
+                    />
+                  ) : (
+                    <label>
+                      Repeticiones por defecto
                       <input
                         type="number"
                         min="1"
                         value={defaultRepetitions}
                         onChange={(event) => setDefaultRepetitions(event.target.value)}
                       />
-                    )}
-                  </label>
-
-                  {defaultExecutionMode === 'time' && (
-                    <label>
-                      Unidad general
-                      <select
-                        value={defaultTimeUnit}
-                        onChange={(event) => {
-                          const nextUnit = event.target.value;
-                          setDefaultTimeValue((current) => convertValueToUnit(current, defaultTimeUnit, nextUnit));
-                          setDefaultTimeUnit(nextUnit);
-                        }}
-                      >
-                        <option value="seconds">Segundos</option>
-                        <option value="minutes">Minutos</option>
-                      </select>
                     </label>
                   )}
                 </div>
@@ -1392,36 +1376,11 @@ function PlanBuilderScreen({
                               </label>
 
                               {draft.executionMode === 'time' ? (
-                                <>
-                                  <label>
-                                    Tiempo
-                                    <input
-                                      type="number"
-                                      min="1"
-                                      value={draft.tiempoValor || ''}
-                                      onChange={(event) => updateExerciseDraft(draft.ejercicioId, 'tiempoValor', event.target.value)}
-                                    />
-                                  </label>
-
-                                  <label>
-                                    Unidad
-                                    <select
-                                      value={draft.tiempoUnidad || 'seconds'}
-                                      onChange={(event) => {
-                                        const nextUnit = event.target.value;
-                                        updateExerciseDraft(
-                                          draft.ejercicioId,
-                                          'tiempoValor',
-                                          convertValueToUnit(draft.tiempoValor, draft.tiempoUnidad || 'seconds', nextUnit),
-                                        );
-                                        updateExerciseDraft(draft.ejercicioId, 'tiempoUnidad', nextUnit);
-                                      }}
-                                    >
-                                      <option value="seconds">Segundos</option>
-                                      <option value="minutes">Minutos</option>
-                                    </select>
-                                  </label>
-                                </>
+                                <SecondsField
+                                  label="Tiempo (segundos)"
+                                  value={draft.tiempoSegundos || ''}
+                                  onChange={(value) => updateExerciseDraft(draft.ejercicioId, 'tiempoSegundos', value)}
+                                />
                               ) : (
                                 <label>
                                   Repeticiones
@@ -1446,36 +1405,11 @@ function PlanBuilderScreen({
                               </label>
 
                               {(draft.descansoMode || 'general') === 'specific' && (
-                                <>
-                                  <label>
-                                    Descanso específico
-                                    <input
-                                      type="number"
-                                      min="1"
-                                      value={draft.descansoValor || ''}
-                                      onChange={(event) => updateExerciseDraft(draft.ejercicioId, 'descansoValor', event.target.value)}
-                                    />
-                                  </label>
-
-                                  <label>
-                                    Unidad
-                                    <select
-                                      value={draft.descansoUnidad || 'seconds'}
-                                      onChange={(event) => {
-                                        const nextUnit = event.target.value;
-                                        updateExerciseDraft(
-                                          draft.ejercicioId,
-                                          'descansoValor',
-                                          convertValueToUnit(draft.descansoValor, draft.descansoUnidad || 'seconds', nextUnit),
-                                        );
-                                        updateExerciseDraft(draft.ejercicioId, 'descansoUnidad', nextUnit);
-                                      }}
-                                    >
-                                      <option value="seconds">Segundos</option>
-                                      <option value="minutes">Minutos</option>
-                                    </select>
-                                  </label>
-                                </>
+                                <SecondsField
+                                  label="Descanso específico (segundos)"
+                                  value={draft.descansoSegundos || ''}
+                                  onChange={(value) => updateExerciseDraft(draft.ejercicioId, 'descansoSegundos', value)}
+                                />
                               )}
                             </div>
 
@@ -1509,35 +1443,21 @@ function PlanBuilderScreen({
                                       </select>
                                     </label>
 
-                                    <label>
-                                      {(warmup.mode || 'reps') === 'time' ? 'Tiempo' : 'Repeticiones'}
-                                      <input
-                                        type="number"
-                                        min="1"
+                                    {(warmup.mode || 'reps') === 'time' ? (
+                                      <SecondsField
+                                        label="Tiempo (segundos)"
                                         value={warmup.valor || ''}
-                                        onChange={(event) => updateWarmupDraft(draft.ejercicioId, warmupIndex, 'valor', event.target.value)}
+                                        onChange={(value) => updateWarmupDraft(draft.ejercicioId, warmupIndex, 'valor', value)}
                                       />
-                                    </label>
-
-                                    {(warmup.mode || 'reps') === 'time' && (
+                                    ) : (
                                       <label>
-                                        Unidad
-                                        <select
-                                          value={warmup.unidad || 'seconds'}
-                                          onChange={(event) => {
-                                            const nextUnit = event.target.value;
-                                            updateWarmupDraft(
-                                              draft.ejercicioId,
-                                              warmupIndex,
-                                              'valor',
-                                              convertValueToUnit(warmup.valor, warmup.unidad || 'seconds', nextUnit),
-                                            );
-                                            updateWarmupDraft(draft.ejercicioId, warmupIndex, 'unidad', nextUnit);
-                                          }}
-                                        >
-                                          <option value="seconds">Segundos</option>
-                                          <option value="minutes">Minutos</option>
-                                        </select>
+                                        Repeticiones
+                                        <input
+                                          type="number"
+                                          min="1"
+                                          value={warmup.valor || ''}
+                                          onChange={(event) => updateWarmupDraft(draft.ejercicioId, warmupIndex, 'valor', event.target.value)}
+                                        />
                                       </label>
                                     )}
 

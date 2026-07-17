@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatDisplayValue, getInputConstraints, getInputType, isOptionalField, resolveValue } from '../utils/form';
 import { normalizeVideoUrl } from '../utils/cloudinary';
-import { convertValueToUnit, secondsToInputValue, toSeconds } from '../utils/restTime';
+import { formatSecondsHint, toPositiveSeconds } from '../utils/restTime';
 import { apiRequest } from '../services/api';
 import MuscleSelector, { MUSCLE_GROUPS, CANVAS_BACKGROUND } from './MuscleSelector';
 import MachineSelector from './MachineSelector';
@@ -839,8 +839,7 @@ function ModuleScreen({
 
   const openEditRoutineExercise = (ejercicio) => {
     const tiempoSegundos = Number(ejercicio?.tiempoSegundos || 0);
-    const tiempoValues = secondsToInputValue(tiempoSegundos);
-    const descansoValues = secondsToInputValue(ejercicio?.descansoSegundos || 0);
+    const descansoSegundos = Number(ejercicio?.descansoSegundos || 0);
     const warmups = Array.isArray(ejercicio?.calentamientos) ? ejercicio.calentamientos : [];
 
     setEditingRoutineExerciseId(String(ejercicio?.rutinaEjercicioId || ''));
@@ -848,21 +847,16 @@ function ModuleScreen({
       series: String(ejercicio?.series ?? ''),
       executionMode: tiempoSegundos > 0 ? 'time' : 'reps',
       repeticiones: String(ejercicio?.repeticiones ?? ''),
-      tiempoValor: tiempoSegundos > 0 ? tiempoValues.value : '1',
-      tiempoUnidad: tiempoSegundos > 0 ? tiempoValues.unit : 'seconds',
-      descansoValor: descansoValues.value,
-      descansoUnidad: descansoValues.unit,
+      tiempoSegundos: tiempoSegundos > 0 ? String(tiempoSegundos) : '60',
+      descansoSegundos: descansoSegundos > 0 ? String(descansoSegundos) : '60',
       carga: String(ejercicio?.carga || ''),
       notasEspecificas: String(ejercicio?.notasEspecificas || ''),
       calentamientos: warmups.map((calentamiento) => {
         const hasDuration = calentamiento?.duracionSegundos !== undefined && calentamiento?.duracionSegundos !== null;
-        const durationSeconds = Number(calentamiento?.duracionSegundos || 0);
-        const canUseWarmupMinutes = durationSeconds >= 60 && durationSeconds % 60 === 0;
 
         return {
           mode: hasDuration ? 'time' : 'reps',
-          valor: String(hasDuration ? durationSeconds : (calentamiento?.repeticiones ?? 10)),
-          unidad: hasDuration && canUseWarmupMinutes ? 'minutes' : 'seconds',
+          valor: String(hasDuration ? calentamiento.duracionSegundos : (calentamiento?.repeticiones ?? 10)),
           intensidad: String(calentamiento?.intensidad || 'baja'),
         };
       }),
@@ -900,13 +894,9 @@ function ModuleScreen({
       const series = Math.max(1, Number(editingRoutineExerciseForm.series || 1));
       const repeticiones = Math.max(1, Number(editingRoutineExerciseForm.repeticiones || 1));
       const tiempoSegundos = executionMode === 'time'
-        ? toSeconds(editingRoutineExerciseForm.tiempoValor || 1, editingRoutineExerciseForm.tiempoUnidad || 'seconds', 1)
+        ? toPositiveSeconds(editingRoutineExerciseForm.tiempoSegundos, 60)
         : null;
-      const descansoSegundos = toSeconds(
-        editingRoutineExerciseForm.descansoValor || 1,
-        editingRoutineExerciseForm.descansoUnidad || 'seconds',
-        1,
-      );
+      const descansoSegundos = toPositiveSeconds(editingRoutineExerciseForm.descansoSegundos, 60);
 
       const payload = {
         series,
@@ -923,7 +913,7 @@ function ModuleScreen({
               orden: index + 1,
               intensidad: warmup?.intensidad || 'baja',
               repeticiones: isTimeWarmup ? null : warmupValue,
-              duracionSegundos: isTimeWarmup ? Math.trunc((warmup?.unidad === 'minutes') ? warmupValue * 60 : warmupValue) : null,
+              duracionSegundos: isTimeWarmup ? warmupValue : null,
             };
           })
           : [],
@@ -1762,33 +1752,20 @@ function ModuleScreen({
 
                                               {(editingRoutineExerciseForm.executionMode || 'reps') === 'time' ? (
                                                 <div className="user-routine-exercise-edit__time-block">
-                                                  <label>
-                                                    Tiempo
-                                                    <input
-                                                      type="number"
-                                                      min="1"
-                                                      value={editingRoutineExerciseForm.tiempoValor || ''}
-                                                      onChange={(event) => setEditingRoutineExerciseForm((current) => ({ ...current, tiempoValor: event.target.value }))}
-                                                    />
-                                                  </label>
-
-                                                  <label>
-                                                    Unidad
-                                                    <select
-                                                      value={editingRoutineExerciseForm.tiempoUnidad || 'seconds'}
-                                                      onChange={(event) => {
-                                                        const nextUnit = event.target.value;
-                                                        setEditingRoutineExerciseForm((current) => ({
-                                                          ...current,
-                                                          tiempoValor: convertValueToUnit(current.tiempoValor, current.tiempoUnidad || 'seconds', nextUnit),
-                                                          tiempoUnidad: nextUnit,
-                                                        }));
-                                                      }}
-                                                    >
-                                                      <option value="seconds">Segundos</option>
-                                                      <option value="minutes">Minutos</option>
-                                                    </select>
-                                                  </label>
+                                                  <span className="plan-builder-seconds-field">
+                                                    <label>
+                                                      Tiempo (segundos)
+                                                      <input
+                                                        type="number"
+                                                        min="1"
+                                                        value={editingRoutineExerciseForm.tiempoSegundos || ''}
+                                                        onChange={(event) => setEditingRoutineExerciseForm((current) => ({ ...current, tiempoSegundos: event.target.value }))}
+                                                      />
+                                                    </label>
+                                                    {formatSecondsHint(editingRoutineExerciseForm.tiempoSegundos) && (
+                                                      <small className="plan-builder-seconds-hint">{formatSecondsHint(editingRoutineExerciseForm.tiempoSegundos)}</small>
+                                                    )}
+                                                  </span>
                                                 </div>
                                               ) : (
                                                 <label>
@@ -1803,33 +1780,20 @@ function ModuleScreen({
                                               )}
 
                                               <div className="user-routine-exercise-edit__rest-block">
-                                                <label>
-                                                  Descanso
-                                                  <input
-                                                    type="number"
-                                                    min="1"
-                                                    value={editingRoutineExerciseForm.descansoValor || ''}
-                                                    onChange={(event) => setEditingRoutineExerciseForm((current) => ({ ...current, descansoValor: event.target.value }))}
-                                                  />
-                                                </label>
-
-                                                <label>
-                                                  Unidad
-                                                  <select
-                                                    value={editingRoutineExerciseForm.descansoUnidad || 'seconds'}
-                                                    onChange={(event) => {
-                                                      const nextUnit = event.target.value;
-                                                      setEditingRoutineExerciseForm((current) => ({
-                                                        ...current,
-                                                        descansoValor: convertValueToUnit(current.descansoValor, current.descansoUnidad || 'seconds', nextUnit),
-                                                        descansoUnidad: nextUnit,
-                                                      }));
-                                                    }}
-                                                  >
-                                                    <option value="seconds">Segundos</option>
-                                                    <option value="minutes">Minutos</option>
-                                                  </select>
-                                                </label>
+                                                <span className="plan-builder-seconds-field">
+                                                  <label>
+                                                    Descanso (segundos)
+                                                    <input
+                                                      type="number"
+                                                      min="1"
+                                                      value={editingRoutineExerciseForm.descansoSegundos || ''}
+                                                      onChange={(event) => setEditingRoutineExerciseForm((current) => ({ ...current, descansoSegundos: event.target.value }))}
+                                                    />
+                                                  </label>
+                                                  {formatSecondsHint(editingRoutineExerciseForm.descansoSegundos) && (
+                                                    <small className="plan-builder-seconds-hint">{formatSecondsHint(editingRoutineExerciseForm.descansoSegundos)}</small>
+                                                  )}
+                                                </span>
                                               </div>
 
                                               <label>
@@ -1860,7 +1824,7 @@ function ModuleScreen({
                                                     ...current,
                                                     calentamientos: [
                                                       ...(Array.isArray(current.calentamientos) ? current.calentamientos : []),
-                                                      { mode: 'reps', valor: '10', unidad: 'seconds', intensidad: 'baja' },
+                                                      { mode: 'reps', valor: '10', intensidad: 'baja' },
                                                     ],
                                                   }))}
                                                 >
@@ -1887,38 +1851,25 @@ function ModuleScreen({
                                                       </select>
                                                     </label>
 
-                                                    <label>
-                                                      {(warmup.mode || 'reps') === 'time' ? 'Tiempo' : 'Repeticiones'}
-                                                      <input
-                                                        type="number"
-                                                        min="1"
-                                                        value={warmup.valor || ''}
-                                                        onChange={(event) => setEditingRoutineExerciseForm((current) => ({
-                                                          ...current,
-                                                          calentamientos: (current.calentamientos || []).map((item, index) => (
-                                                            index === warmupIndex ? { ...item, valor: event.target.value } : item
-                                                          )),
-                                                        }))}
-                                                      />
-                                                    </label>
-
-                                                    {(warmup.mode || 'reps') === 'time' && (
+                                                    <span className="plan-builder-seconds-field">
                                                       <label>
-                                                        Unidad
-                                                        <select
-                                                          value={warmup.unidad || 'seconds'}
+                                                        {(warmup.mode || 'reps') === 'time' ? 'Tiempo (segundos)' : 'Repeticiones'}
+                                                        <input
+                                                          type="number"
+                                                          min="1"
+                                                          value={warmup.valor || ''}
                                                           onChange={(event) => setEditingRoutineExerciseForm((current) => ({
                                                             ...current,
                                                             calentamientos: (current.calentamientos || []).map((item, index) => (
-                                                              index === warmupIndex ? { ...item, unidad: event.target.value } : item
+                                                              index === warmupIndex ? { ...item, valor: event.target.value } : item
                                                             )),
                                                           }))}
-                                                        >
-                                                          <option value="seconds">Segundos</option>
-                                                          <option value="minutes">Minutos</option>
-                                                        </select>
+                                                        />
                                                       </label>
-                                                    )}
+                                                      {(warmup.mode || 'reps') === 'time' && formatSecondsHint(warmup.valor) && (
+                                                        <small className="plan-builder-seconds-hint">{formatSecondsHint(warmup.valor)}</small>
+                                                      )}
+                                                    </span>
 
                                                     <label>
                                                       Intensidad

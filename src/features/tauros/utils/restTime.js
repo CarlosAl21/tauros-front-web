@@ -1,50 +1,44 @@
-// Fuente unica para convertir entre segundos (lo que guarda el backend:
-// tiempoSegundos/descansoSegundos) y el par {valor, unidad} que edita el
-// usuario en un input + selector de Segundos/Minutos. Antes esta logica
-// estaba duplicada en PlanBuilderScreen.js y ModuleScreen.js, y terminaron
-// desincronizadas: el selector de unidad cambiaba la unidad sin convertir el
-// numero, asi que "60" con Segundos pasaba a leerse como "60" Minutos (3600
-// segundos) en vez de "1" Minuto. Con un solo lugar para esto, arreglarlo acá
-// lo arregla en todos los formularios que lo usen.
-
-export function secondsToInputValue(seconds) {
+// Tiempo (duracion) y descanso se guardan y editan SIEMPRE en segundos, en
+// un unico campo numerico -- sin selector de unidad.
+//
+// Antes habia un input de "valor" + un <select> de "Segundos/Minutos" en 4
+// pantallas distintas, cada una convirtiendo entre el par {valor, unidad} y
+// los segundos crudos que espera el backend por su cuenta. Eso genero fallas
+// reales y dificiles de rastrear:
+//   - El <select> de unidad cambiaba la unidad sin convertir el numero (60
+//     con "Segundos" pasaba a leerse como 60 minutos al tocar el selector).
+//   - Al navegar entre dias de un plan, una funcion que esperaba el dato
+//     "crudo" (recienLlegado del backend) se volvia a llamar sobre un draft
+//     que ya estaba en formato {valor, unidad}, perdiendo o corrompiendo el
+//     descanso ya cargado.
+// Con un solo campo en segundos no hay una segunda fuente de verdad que
+// pueda desincronizarse: no existe forma de "cambiar la unidad sin
+// convertir" porque no hay unidad que cambiar.
+export function formatSecondsHint(seconds) {
   const parsed = Number(seconds);
   if (!Number.isFinite(parsed) || parsed < 1) {
-    return { value: '60', unit: 'seconds' };
+    return '';
   }
 
-  if (parsed >= 60 && parsed % 60 === 0) {
-    return { value: String(parsed / 60), unit: 'minutes' };
+  if (parsed < 60) {
+    return `${Math.trunc(parsed)} seg`;
   }
 
-  return { value: String(parsed), unit: 'seconds' };
+  const minutes = Math.floor(parsed / 60);
+  const remainder = Math.trunc(parsed % 60);
+
+  if (remainder === 0) {
+    return `≈ ${minutes} min`;
+  }
+
+  return `≈ ${minutes} min ${remainder} seg`;
 }
 
-export function toSeconds(value, unit = 'seconds', fallback = 60) {
+export function toPositiveSeconds(value, fallback = 60) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed < 1) {
     return fallback;
   }
 
-  return unit === 'minutes' ? Math.trunc(parsed * 60) : Math.trunc(parsed);
-}
-
-// Al tocar el selector de unidad (segundos/minutos), el numero que ya estaba
-// escrito tiene que convertirse a la unidad nueva -- si no, "60" con
-// "Segundos" pasa a interpretarse como "60" con "Minutos" (3600 segundos) en
-// vez de "1" minuto, que es lo que de verdad representan esos 60 segundos.
-export function convertValueToUnit(value, fromUnit, toUnit) {
-  if (fromUnit === toUnit) {
-    return value;
-  }
-
-  const parsed = Number(value);
-  if (!value || !Number.isFinite(parsed) || parsed < 1) {
-    return value;
-  }
-
-  const totalSeconds = fromUnit === 'minutes' ? parsed * 60 : parsed;
-  const converted = toUnit === 'minutes' ? totalSeconds / 60 : totalSeconds;
-
-  return String(Math.max(1, Math.round(converted)));
+  return Math.trunc(parsed);
 }

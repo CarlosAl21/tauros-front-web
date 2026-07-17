@@ -23,7 +23,8 @@ const plan = {
           series: 3,
           repeticiones: 12,
           // El dato viejo corrupto que reporto el usuario: 3600 segundos
-          // guardado como descanso por el bug de conversion ya arreglado.
+          // guardado como descanso por el bug del selector de unidad, ya
+          // eliminado por completo del diseño.
           descansoSegundos: 3600,
           carga: '',
           notasEspecificas: '',
@@ -38,31 +39,32 @@ beforeEach(() => {
   apiRequest.mockClear();
 });
 
-test('al editar, el descanso viejo de 3600 segundos se muestra como 60 Minutos, no como "3600" crudo', () => {
+test('al editar, el descanso se muestra en segundos crudos, sin selector de unidad que pueda desincronizarse', () => {
   render(<PlanDetailScreen plan={plan} loading={false} token="tok" onUpdate={() => {}} />);
 
   fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
 
-  expect(screen.getByLabelText('Descanso')).toHaveValue(60);
-  expect(screen.getByLabelText('Unidad (descanso)')).toHaveValue('minutes');
+  expect(screen.getByLabelText('Descanso (segundos)')).toHaveValue(3600);
+  // No debe existir ningun selector de unidad -- ya no hay nada que cambiar.
+  expect(screen.queryByText('Segundos')).not.toBeInTheDocument();
+  expect(screen.queryByText('Minutos')).not.toBeInTheDocument();
 });
 
-test('cambiar la unidad de Segundos a Minutos convierte el valor en vez de dejarlo crudo', () => {
+test('muestra un texto de ayuda de solo lectura con el equivalente en minutos, sin afectar el valor guardado', () => {
   render(<PlanDetailScreen plan={plan} loading={false} token="tok" onUpdate={() => {}} />);
 
   fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
-  fireEvent.change(screen.getByLabelText('Unidad (descanso)'), { target: { value: 'seconds' } });
 
-  // 60 minutos -> al pasar a Segundos tiene que convertir a 3600, no quedar en "60".
-  expect(screen.getByLabelText('Descanso')).toHaveValue(3600);
+  expect(screen.getByText('≈ 60 min')).toBeInTheDocument();
+  expect(screen.getByLabelText('Descanso (segundos)')).toHaveValue(3600);
 });
 
-test('al guardar, el valor+unidad se convierte de nuevo a segundos correctos para el backend', async () => {
+test('al guardar, el valor en segundos se manda tal cual al backend, sin ninguna conversion', async () => {
   render(<PlanDetailScreen plan={plan} loading={false} token="tok" onUpdate={() => {}} />);
 
   fireEvent.click(screen.getByRole('button', { name: 'Editar' }));
-  // Corrige el dato viejo: pasa de "60 minutos" a "1 minuto" (60 segundos reales).
-  fireEvent.change(screen.getByLabelText('Descanso'), { target: { value: '1' } });
+  // Corrige el dato viejo directamente: de 3600 (el bug) a 60 segundos reales.
+  fireEvent.change(screen.getByLabelText('Descanso (segundos)'), { target: { value: '60' } });
 
   await act(async () => {
     fireEvent.click(screen.getByRole('button', { name: 'Guardar' }));
