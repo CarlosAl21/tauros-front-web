@@ -446,13 +446,6 @@ export function useTaurosApp() {
         }
       }
 
-      if (activeModule.key === 'ejercicio' && formMode === 'edit') {
-        const selectedExerciseId = editRecordId;
-        if (selectedExerciseId) {
-          payload.ejercicioId = String(selectedExerciseId);
-        }
-      }
-
       if (activeModule.key === 'ejercicio') {
         const categoriaSeleccionada = payload.categoriaId
           || createForm.categoriaId

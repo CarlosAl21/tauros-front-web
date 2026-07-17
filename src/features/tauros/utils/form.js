@@ -269,6 +269,16 @@ export function normalizePayload(form, config) {
     delete payload.usuarioId;
   }
 
+  // openEditForm mete el id propio del registro en el estado del formulario
+  // (para poder armar la URL del PATCH desde createForm), pero ningun DTO del
+  // backend lo acepta en el body -- ya va en la URL (`PATCH /modulo/:id`).
+  // Mandarlo igual rompe con 400 "property X should not exist" por el
+  // whitelist estricto del backend (forbidNonWhitelisted). Se saca siempre,
+  // para el modulo que sea, en vez de parchear caso por caso.
+  if (config.idField && payload[config.idField] !== undefined) {
+    delete payload[config.idField];
+  }
+
   return payload;
 }
 
