@@ -31,34 +31,64 @@ export const API_BASE_URL = getApiBaseUrl();
 // (nombre, correo, rol - no es secreto).
 export const TAUROS_USER_KEY = 'tauros_user';
 
-const CSRF_COOKIE_NAME = 'tauros_csrf';
 const CSRF_HEADER_NAME = 'X-CSRF-Token';
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
-// login/register todavia no tienen sesion (recien se va a crear), asi que el
-// backend no exige el header CSRF ahi.
-const PUBLIC_AUTH_ENDPOINTS = new Set(['/auth/login', '/auth/register']);
-
 // Endpoints de autenticacion: nunca se les aplica el flujo de refresh-and-retry
-// (evita loops y evita disparar un refresh mientras se hace login/logout).
+// (evita loops y evita disparar un refresh mientras se hace login/logout), y
+// tampoco necesitan (ni pueden esperar) un csrfToken previo en memoria — son
+// justo los que lo generan/renuevan.
 const AUTH_ENDPOINTS = new Set(['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout']);
 
-function readCsrfCookie() {
-  const match = document.cookie.match(new RegExp(`(?:^|;\\s*)${CSRF_COOKIE_NAME}=([^;]*)`));
-  return match ? decodeURIComponent(match[1]) : null;
+// El token CSRF vive en memoria, no en una cookie legible por JS: el backend
+// setea la cookie `tauros_csrf` con httpOnly:false, pero eso solo sirve para
+// que el propio navegador la reenvie sola en requests futuras al backend. Si
+// el frontend corre en un dominio distinto al backend (como en produccion:
+// tauros-front-web.onrender.com vs tauros-backend.onrender.com), document.cookie
+// JAMAS puede leer esa cookie desde el frontend — es una restriccion de origen
+// del navegador, no del flag httpOnly. Por eso login/refresh/2fa-verify
+// devuelven el mismo valor en el body de la respuesta (ver auth.controller.ts
+// del backend), y ese valor es el que se guarda y reenvia como header acá.
+let csrfToken = null;
+
+function captureCsrfToken(payload) {
+  if (payload && typeof payload === 'object' && typeof payload.csrfToken === 'string') {
+    csrfToken = payload.csrfToken;
+  }
 }
 
-function buildCsrfHeaders(path, method) {
-  if (!MUTATING_METHODS.has(method) || PUBLIC_AUTH_ENDPOINTS.has(path)) {
+// Se llama al cerrar sesion: el backend ya invalido su cookie/token CSRF, asi
+// que la copia en memoria del frontend queda obsoleta.
+export function clearCsrfToken() {
+  csrfToken = null;
+}
+
+function buildCsrfHeaders(method) {
+  if (!MUTATING_METHODS.has(method) || !csrfToken) {
     return {};
   }
 
-  const csrfToken = readCsrfCookie();
-  return csrfToken ? { [CSRF_HEADER_NAME]: csrfToken } : {};
+  return { [CSRF_HEADER_NAME]: csrfToken };
+}
+
+// Si vamos a mandar una request mutante y todavia no tenemos ningun csrfToken
+// en memoria (tipico despues de recargar la pagina: el estado de React se
+// reinicia pero la sesion sigue viva en las cookies httpOnly), lo conseguimos
+// llamando a /auth/refresh primero — esa ruta esta exenta de CSRF justo para
+// poder resolver este arranque en frio. Definida mas abajo, junto al resto
+// del flujo de refresh, para compartir la misma promesa/deduplicacion.
+async function ensureCsrfToken() {
+  if (csrfToken) {
+    return csrfToken;
+  }
+
+  await refreshAccessToken();
+  return csrfToken;
 }
 
 function clearSession() {
   localStorage.removeItem(TAUROS_USER_KEY);
+  clearCsrfToken();
 }
 
 function redirectToLogin() {
@@ -75,43 +105,11 @@ function handleSessionExpired() {
   redirectToLogin();
 }
 
-// Varias requests pueden recibir 401 al mismo tiempo (ej. las llamadas en
-// paralelo de loadCatalogs). Compartir una unica promesa de refresh evita
-// bombardear /auth/refresh con intentos concurrentes.
-let refreshPromise = null;
-
-async function refreshAccessToken() {
-  if (refreshPromise) {
-    return refreshPromise;
-  }
-
-  refreshPromise = (async () => {
-    try {
-      // El refresh token vive en la cookie httpOnly tauros_refresh_token
-      // (Path /auth); el backend la lee solo, no hace falta mandar nada en
-      // el body. credentials: 'include' es lo unico que importa aca.
-      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: buildCsrfHeaders('/auth/refresh', 'POST'),
-      });
-
-      return response.ok;
-    } catch (_err) {
-      return false;
-    } finally {
-      refreshPromise = null;
-    }
-  })();
-
-  return refreshPromise;
-}
-
 async function performRequest(path, options) {
   const method = (options.method || 'GET').toUpperCase();
   const headers = {
     ...(options.headers || {}),
-    ...buildCsrfHeaders(path, method),
+    ...buildCsrfHeaders(method),
   };
 
   if (!(options.body instanceof FormData)) {
@@ -133,6 +131,32 @@ async function performRequest(path, options) {
   return { response, payload };
 }
 
+// Varias requests pueden necesitar un refresh al mismo tiempo (un 401 en
+// loadCatalogs, o el arranque en frio de ensureCsrfToken de arriba).
+// Compartir una unica promesa evita bombardear /auth/refresh con intentos
+// concurrentes, y de paso captura el csrfToken nuevo que devuelve el body.
+let refreshPromise = null;
+
+async function refreshAccessToken() {
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  refreshPromise = performRequest('/auth/refresh', { method: 'POST' })
+    .then(({ response, payload }) => {
+      if (response.ok) {
+        captureCsrfToken(payload);
+      }
+      return response.ok;
+    })
+    .catch(() => false)
+    .finally(() => {
+      refreshPromise = null;
+    });
+
+  return refreshPromise;
+}
+
 // El segundo parametro (antes el JWT para armar "Authorization: Bearer ...")
 // se mantiene por compatibilidad con los call sites existentes, pero ya no se
 // usa: la sesion viaja sola en la cookie httpOnly tauros_access_token.
@@ -141,6 +165,11 @@ export async function apiRequest(path, _token, options = {}) {
     throw new Error(
       'Falta configurar REACT_APP_API_URL en este entorno. La app no puede conectarse al backend.'
     );
+  }
+
+  const method = (options.method || 'GET').toUpperCase();
+  if (MUTATING_METHODS.has(method) && !AUTH_ENDPOINTS.has(path)) {
+    await ensureCsrfToken();
   }
 
   let { response, payload } = await performRequest(path, options);
@@ -166,6 +195,11 @@ export async function apiRequest(path, _token, options = {}) {
     }
     throw new Error(payload || 'Error de conexion con backend');
   }
+
+  // login/register/2fa-verify tambien devuelven un csrfToken nuevo en el
+  // body (ver comentario junto a la definicion de `csrfToken` mas arriba);
+  // no-op para el resto de los endpoints, que no traen ese campo.
+  captureCsrfToken(payload);
 
   return payload;
 }

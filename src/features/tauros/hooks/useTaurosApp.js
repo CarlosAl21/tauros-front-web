@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MODULE_MAP } from '../config/modules';
-import { apiRequest, TAUROS_USER_KEY } from '../services/api';
+import { apiRequest, clearCsrfToken, TAUROS_USER_KEY } from '../services/api';
 import { uploadDirectlyToCloudinary } from '../services/cloudinary';
 import { buildFormFromRecord, buildInitialForm, normalizePayload } from '../utils/form';
 
@@ -648,6 +648,7 @@ export function useTaurosApp() {
     // httpOnly del lado del servidor. Si falla, el logout local sigue
     // adelante igual, como hace la app movil.
     apiRequest('/auth/logout', '', { method: 'POST' }).catch(() => {});
+    clearCsrfToken();
 
     setUser(null);
     setRecords([]);
