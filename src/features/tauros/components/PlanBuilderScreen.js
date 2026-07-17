@@ -41,7 +41,7 @@ function buildExerciseVideoThumbnail(videoUrl) {
     }
 
     const jpgPath = suffix.replace(/\.[^./?]+$/, '.jpg');
-    const thumbnailPath = `${prefix}/video/upload/so_0/${jpgPath}`;
+    const thumbnailPath = `${prefix}/video/upload/c_fill,w_960,h_540,so_0/${jpgPath}`;
     return `${parsed.origin}${thumbnailPath}${parsed.search || ''}`;
   } catch (_error) {
     return '';

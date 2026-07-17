@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatDisplayValue, getInputConstraints, getInputType, isOptionalField, resolveValue } from '../utils/form';
+import { normalizeVideoUrl } from '../utils/cloudinary';
 import { apiRequest } from '../services/api';
 import MuscleSelector, { MUSCLE_GROUPS } from './MuscleSelector';
 import MachineSelector from './MachineSelector';
@@ -397,7 +398,7 @@ function buildExerciseVideoThumbnail(videoUrl) {
     }
 
     const jpgPath = suffix.replace(/\.[^./?]+$/, '.jpg');
-    const thumbnailPath = `${prefix}/video/upload/so_0/${jpgPath}`;
+    const thumbnailPath = `${prefix}/video/upload/c_fill,w_960,h_540,so_0/${jpgPath}`;
     return `${parsed.origin}${thumbnailPath}${parsed.search || ''}`;
   } catch (_error) {
     return '';
@@ -1400,7 +1401,7 @@ function ModuleScreen({
                       <section>
                         <h4>Video</h4>
                         <ExerciseVideoPreview
-                          src={videoSrc}
+                          src={normalizeVideoUrl(videoSrc)}
                           className="exercise-card__video"
                           controls
                           autoPlay
