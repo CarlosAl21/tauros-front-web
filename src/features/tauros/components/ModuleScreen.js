@@ -53,6 +53,26 @@ function toSeconds(value, unit = 'seconds', fallback = 1) {
   return unit === 'minutes' ? Math.trunc(parsed * 60) : Math.trunc(parsed);
 }
 
+// Al tocar el selector de unidad (segundos/minutos), el numero que ya estaba
+// escrito tiene que convertirse a la unidad nueva -- si no, "60" con
+// "Segundos" pasa a interpretarse como "60" con "Minutos" (3600 segundos) en
+// vez de "1" minuto, que es lo que de verdad representan esos 60 segundos.
+function convertValueToUnit(value, fromUnit, toUnit) {
+  if (fromUnit === toUnit) {
+    return value;
+  }
+
+  const parsed = Number(value);
+  if (!value || !Number.isFinite(parsed) || parsed < 1) {
+    return value;
+  }
+
+  const totalSeconds = fromUnit === 'minutes' ? parsed * 60 : parsed;
+  const converted = toUnit === 'minutes' ? totalSeconds / 60 : totalSeconds;
+
+  return String(Math.max(1, Math.round(converted)));
+}
+
 async function compressVideoFile(file) {
   if (!isFileLike(file) || !file.type.startsWith('video/') || typeof MediaRecorder === 'undefined') {
     return file;
@@ -1797,7 +1817,14 @@ function ModuleScreen({
                                                     Unidad
                                                     <select
                                                       value={editingRoutineExerciseForm.tiempoUnidad || 'seconds'}
-                                                      onChange={(event) => setEditingRoutineExerciseForm((current) => ({ ...current, tiempoUnidad: event.target.value }))}
+                                                      onChange={(event) => {
+                                                        const nextUnit = event.target.value;
+                                                        setEditingRoutineExerciseForm((current) => ({
+                                                          ...current,
+                                                          tiempoValor: convertValueToUnit(current.tiempoValor, current.tiempoUnidad || 'seconds', nextUnit),
+                                                          tiempoUnidad: nextUnit,
+                                                        }));
+                                                      }}
                                                     >
                                                       <option value="seconds">Segundos</option>
                                                       <option value="minutes">Minutos</option>
@@ -1831,7 +1858,14 @@ function ModuleScreen({
                                                   Unidad
                                                   <select
                                                     value={editingRoutineExerciseForm.descansoUnidad || 'seconds'}
-                                                    onChange={(event) => setEditingRoutineExerciseForm((current) => ({ ...current, descansoUnidad: event.target.value }))}
+                                                    onChange={(event) => {
+                                                      const nextUnit = event.target.value;
+                                                      setEditingRoutineExerciseForm((current) => ({
+                                                        ...current,
+                                                        descansoValor: convertValueToUnit(current.descansoValor, current.descansoUnidad || 'seconds', nextUnit),
+                                                        descansoUnidad: nextUnit,
+                                                      }));
+                                                    }}
                                                   >
                                                     <option value="seconds">Segundos</option>
                                                     <option value="minutes">Minutos</option>

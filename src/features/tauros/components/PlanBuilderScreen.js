@@ -102,6 +102,26 @@ function secondsToInputValue(seconds) {
   return { value: String(parsed), unit: 'seconds' };
 }
 
+// Al tocar el selector de unidad (segundos/minutos), el numero que ya estaba
+// escrito tiene que convertirse a la unidad nueva -- si no, "60" con
+// "Segundos" pasa a interpretarse como "60" con "Minutos" (3600 segundos) en
+// vez de "1" minuto, que es lo que de verdad representan esos 60 segundos.
+export function convertValueToUnit(value, fromUnit, toUnit) {
+  if (fromUnit === toUnit) {
+    return value;
+  }
+
+  const parsed = Number(value);
+  if (!value || !Number.isFinite(parsed) || parsed < 1) {
+    return value;
+  }
+
+  const totalSeconds = fromUnit === 'minutes' ? parsed * 60 : parsed;
+  const converted = toUnit === 'minutes' ? totalSeconds / 60 : totalSeconds;
+
+  return String(Math.max(1, Math.round(converted)));
+}
+
 function buildWarmupDraft(item) {
   const hasDuration = item?.duracionSegundos !== undefined && item?.duracionSegundos !== null;
   return {
@@ -1165,7 +1185,11 @@ function PlanBuilderScreen({
                       Unidad
                       <select
                         value={dayRestUnit}
-                        onChange={(event) => setDayRestUnit(event.target.value)}
+                        onChange={(event) => {
+                          const nextUnit = event.target.value;
+                          setDayRestValue((current) => convertValueToUnit(current, dayRestUnit, nextUnit));
+                          setDayRestUnit(nextUnit);
+                        }}
                       >
                         <option value="seconds">Segundos</option>
                         <option value="minutes">Minutos</option>
@@ -1239,7 +1263,14 @@ function PlanBuilderScreen({
                   {defaultExecutionMode === 'time' && (
                     <label>
                       Unidad general
-                      <select value={defaultTimeUnit} onChange={(event) => setDefaultTimeUnit(event.target.value)}>
+                      <select
+                        value={defaultTimeUnit}
+                        onChange={(event) => {
+                          const nextUnit = event.target.value;
+                          setDefaultTimeValue((current) => convertValueToUnit(current, defaultTimeUnit, nextUnit));
+                          setDefaultTimeUnit(nextUnit);
+                        }}
+                      >
                         <option value="seconds">Segundos</option>
                         <option value="minutes">Minutos</option>
                       </select>
@@ -1417,7 +1448,15 @@ function PlanBuilderScreen({
                                     Unidad
                                     <select
                                       value={draft.tiempoUnidad || 'seconds'}
-                                      onChange={(event) => updateExerciseDraft(draft.ejercicioId, 'tiempoUnidad', event.target.value)}
+                                      onChange={(event) => {
+                                        const nextUnit = event.target.value;
+                                        updateExerciseDraft(
+                                          draft.ejercicioId,
+                                          'tiempoValor',
+                                          convertValueToUnit(draft.tiempoValor, draft.tiempoUnidad || 'seconds', nextUnit),
+                                        );
+                                        updateExerciseDraft(draft.ejercicioId, 'tiempoUnidad', nextUnit);
+                                      }}
                                     >
                                       <option value="seconds">Segundos</option>
                                       <option value="minutes">Minutos</option>
@@ -1463,7 +1502,15 @@ function PlanBuilderScreen({
                                     Unidad
                                     <select
                                       value={draft.descansoUnidad || 'seconds'}
-                                      onChange={(event) => updateExerciseDraft(draft.ejercicioId, 'descansoUnidad', event.target.value)}
+                                      onChange={(event) => {
+                                        const nextUnit = event.target.value;
+                                        updateExerciseDraft(
+                                          draft.ejercicioId,
+                                          'descansoValor',
+                                          convertValueToUnit(draft.descansoValor, draft.descansoUnidad || 'seconds', nextUnit),
+                                        );
+                                        updateExerciseDraft(draft.ejercicioId, 'descansoUnidad', nextUnit);
+                                      }}
                                     >
                                       <option value="seconds">Segundos</option>
                                       <option value="minutes">Minutos</option>
@@ -1518,7 +1565,16 @@ function PlanBuilderScreen({
                                         Unidad
                                         <select
                                           value={warmup.unidad || 'seconds'}
-                                          onChange={(event) => updateWarmupDraft(draft.ejercicioId, warmupIndex, 'unidad', event.target.value)}
+                                          onChange={(event) => {
+                                            const nextUnit = event.target.value;
+                                            updateWarmupDraft(
+                                              draft.ejercicioId,
+                                              warmupIndex,
+                                              'valor',
+                                              convertValueToUnit(warmup.valor, warmup.unidad || 'seconds', nextUnit),
+                                            );
+                                            updateWarmupDraft(draft.ejercicioId, warmupIndex, 'unidad', nextUnit);
+                                          }}
                                         >
                                           <option value="seconds">Segundos</option>
                                           <option value="minutes">Minutos</option>
