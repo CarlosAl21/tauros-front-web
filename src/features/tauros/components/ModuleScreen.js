@@ -6,7 +6,6 @@ import { apiRequest } from '../services/api';
 import MuscleSelector, { MUSCLE_GROUPS } from './MuscleSelector';
 import MachineSelector from './MachineSelector';
 import PlanNutricionalScreen from './PlanNutricionalScreen';
-import muscleBackground from '../utils/pictures/Musculos.jpg';
 
 function isFileLike(value) {
   return typeof File !== 'undefined' && value instanceof File;
@@ -162,42 +161,46 @@ async function compressVideoFile(file) {
   });
 }
 
-async function exportMuscleSvgToFile(svgElement) {
-  if (!svgElement) {
+function svgElementToImage(svgElement) {
+  return new Promise((resolve, reject) => {
+    const serializer = new XMLSerializer();
+    const svgMarkup = serializer.serializeToString(svgElement);
+    const encoded = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgMarkup)}`;
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = encoded;
+  });
+}
+
+// react-body-highlighter renderiza el frente y la espalda como dos <svg>
+// separados (viewBox 0 0 100 200 cada uno, ya con la silueta y los musculos
+// dibujados con su forma anatomica real). Se rasterizan lado a lado en un
+// solo canvas para mantener el mismo archivo AM combinado que se subia antes.
+async function exportMuscleSvgToFile(svgElements) {
+  const { front, back } = svgElements || {};
+  if (!front || !back) {
     return null;
   }
 
-  const serializer = new XMLSerializer();
-  const svgMarkup = serializer.serializeToString(svgElement);
-  const encoded = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgMarkup)}`;
-  const image = new Image();
-  const backgroundImage = new Image();
-
-  await Promise.all([
-    new Promise((resolve, reject) => {
-      image.onload = resolve;
-      image.onerror = reject;
-      image.src = encoded;
-    }),
-    new Promise((resolve, reject) => {
-      backgroundImage.onload = resolve;
-      backgroundImage.onerror = reject;
-      backgroundImage.src = muscleBackground;
-    }),
+  const [frontImage, backImage] = await Promise.all([
+    svgElementToImage(front),
+    svgElementToImage(back),
   ]);
 
   const canvas = document.createElement('canvas');
-  canvas.width = 720;
-  canvas.height = 480;
+  canvas.width = 400;
+  canvas.height = 400;
   const context = canvas.getContext('2d');
 
   if (!context) {
     return null;
   }
 
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  context.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
-  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  context.fillStyle = '#3a3a3a';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(frontImage, 0, 0, 200, 400);
+  context.drawImage(backImage, 200, 0, 200, 400);
 
   const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.72));
   if (!blob) {
@@ -1117,7 +1120,7 @@ function ModuleScreen({
     let generatedPreview = '';
 
     const createMuscleImage = async () => {
-      const file = await exportMuscleSvgToFile(muscleSvgRef.current);
+      const file = await exportMuscleSvgToFile(muscleSvgRef.current?.getSvgElements());
       if (!file || ignore) {
         return;
       }
