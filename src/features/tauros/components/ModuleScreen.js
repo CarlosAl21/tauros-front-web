@@ -2331,7 +2331,11 @@ function ModuleScreen({
 
               const options = getFieldOptions(activeModule, field, user, getOptionsForField);
               const optional = isOptionalField(field);
-              const required = isCompositionModule ? field === 'peso' : !optional;
+              const required = isCompositionModule
+                ? field === 'peso'
+                : isUserModule && field === 'password' && formMode === 'edit'
+                  ? false
+                  : !optional;
 
               if (activeModule.key === 'evento' && field === 'fechaHora') {
                 const dateValue = createForm.fechaHoraFecha

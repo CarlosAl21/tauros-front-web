@@ -269,6 +269,13 @@ export function normalizePayload(form, config) {
     delete payload.usuarioId;
   }
 
+  // Password se deja vacio al editar (buildFormFromRecord nunca precarga el
+  // hash real). Si se manda igual, el backend lo mergea tal cual sobre la
+  // entidad y sobreescribe la contraseña real con un string vacio.
+  if (payload.password === '') {
+    delete payload.password;
+  }
+
   // openEditForm mete el id propio del registro en el estado del formulario
   // (para poder armar la URL del PATCH desde createForm), pero ningun DTO del
   // backend lo acepta en el body -- ya va en la URL (`PATCH /modulo/:id`).
