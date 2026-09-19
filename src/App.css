@@ -2366,6 +2366,10 @@ th {
   text-transform: capitalize;
 }
 
+.catalog-picker__sentinel {
+  height: 1px;
+}
+
 @media (max-width: 1100px) {
   .plan-builder-grid {
     grid-template-columns: 1fr;

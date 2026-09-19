@@ -1,5 +1,13 @@
-import { useMemo, useState } from 'react';
+import {
+  useEffect, useMemo, useRef, useState,
+} from 'react';
 import exerciseCatalog from '../data/exerciseCatalog.json';
+
+// Cuantos items se agregan al grid por tanda. Renderizar los 1324 <video
+// autoPlay> del catalogo de una sola vez tira abajo el proceso de render del
+// navegador (demasiados decoders de video en simultaneo) -- ver el scroll
+// infinito mas abajo, que solo monta esta cantidad y suma de a tandas.
+const PAGE_SIZE = 20;
 
 // Modal de seleccion para el catalogo de ejercicios pre-cargado en
 // Cloudinary (ver tauros-backend/scripts/migrate-exercise-catalog.js). No
@@ -8,6 +16,9 @@ import exerciseCatalog from '../data/exerciseCatalog.json';
 function ExerciseCatalogPicker({ onSelect, onClose }) {
   const [search, setSearch] = useState('');
   const [bodyPartFilter, setBodyPartFilter] = useState('');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const scrollRef = useRef(null);
+  const sentinelRef = useRef(null);
 
   const bodyParts = useMemo(() => {
     const labels = new Set(exerciseCatalog.map((item) => item.bodyPartLabel).filter(Boolean));
@@ -23,6 +34,34 @@ function ExerciseCatalogPicker({ onSelect, onClose }) {
       return matchesBodyPart && matchesSearch;
     });
   }, [bodyPartFilter, search]);
+
+  // Cada vez que cambia el filtro/busqueda, la lista de resultados es otra:
+  // volvemos a arrancar en la primera tanda.
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [search, bodyPartFilter]);
+
+  const visibleResults = useMemo(
+    () => results.slice(0, visibleCount),
+    [results, visibleCount],
+  );
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    const root = scrollRef.current;
+    if (!sentinel || !root || visibleCount >= results.length) {
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting) {
+        setVisibleCount((count) => Math.min(count + PAGE_SIZE, results.length));
+      }
+    }, { root, rootMargin: '200px' });
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [results.length, visibleCount]);
 
   if (!exerciseCatalog.length) {
     return (
@@ -46,7 +85,7 @@ function ExerciseCatalogPicker({ onSelect, onClose }) {
 
   return (
     <div className="catalog-picker-overlay" onClick={onClose}>
-      <article className="catalog-picker" onClick={(event) => event.stopPropagation()}>
+      <article ref={scrollRef} className="catalog-picker" onClick={(event) => event.stopPropagation()}>
         <div className="catalog-picker__header">
           <h2>Catalogo de ejercicios</h2>
           <button type="button" onClick={onClose}>Cerrar</button>
@@ -67,10 +106,12 @@ function ExerciseCatalogPicker({ onSelect, onClose }) {
           </select>
         </div>
 
-        <p className="catalog-picker__count">{results.length} ejercicios</p>
+        <p className="catalog-picker__count">
+          {visibleResults.length} de {results.length} ejercicios
+        </p>
 
         <div className="catalog-picker__grid">
-          {results.map((item) => (
+          {visibleResults.map((item) => (
             <button
               key={item.id}
               type="button"
@@ -83,6 +124,7 @@ function ExerciseCatalogPicker({ onSelect, onClose }) {
                 loop
                 autoPlay
                 playsInline
+                preload="metadata"
                 className="catalog-picker__video"
               />
               <span className="catalog-picker__name">{item.name}</span>
@@ -90,6 +132,10 @@ function ExerciseCatalogPicker({ onSelect, onClose }) {
             </button>
           ))}
         </div>
+
+        {visibleCount < results.length && (
+          <div ref={sentinelRef} className="catalog-picker__sentinel" aria-hidden="true" />
+        )}
       </article>
     </div>
   );
