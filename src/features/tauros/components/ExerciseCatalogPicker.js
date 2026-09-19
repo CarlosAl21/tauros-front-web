@@ -21,7 +21,7 @@ function ExerciseCatalogPicker({ onSelect, onClose }) {
   const sentinelRef = useRef(null);
 
   const bodyParts = useMemo(() => {
-    const labels = new Set(exerciseCatalog.map((item) => item.bodyPartLabel).filter(Boolean));
+    const labels = new Set(exerciseCatalog.map((item) => item.tipoLabel).filter(Boolean));
     return Array.from(labels).sort();
   }, []);
 
@@ -29,8 +29,10 @@ function ExerciseCatalogPicker({ onSelect, onClose }) {
     const term = search.trim().toLowerCase();
 
     return exerciseCatalog.filter((item) => {
-      const matchesBodyPart = !bodyPartFilter || item.bodyPartLabel === bodyPartFilter;
-      const matchesSearch = !term || item.name.toLowerCase().includes(term);
+      const matchesBodyPart = !bodyPartFilter || item.tipoLabel === bodyPartFilter;
+      const matchesSearch = !term
+        || item.name.toLowerCase().includes(term)
+        || (item.nameEs || '').toLowerCase().includes(term);
       return matchesBodyPart && matchesSearch;
     });
   }, [bodyPartFilter, search]);
@@ -127,8 +129,8 @@ function ExerciseCatalogPicker({ onSelect, onClose }) {
                 preload="metadata"
                 className="catalog-picker__video"
               />
-              <span className="catalog-picker__name">{item.name}</span>
-              <span className="catalog-picker__meta">{item.bodyPartLabel} · {item.equipment}</span>
+              <span className="catalog-picker__name">{item.nameEs || item.name}</span>
+              <span className="catalog-picker__meta">{item.tipoLabel} · {item.categoriaLabel}</span>
             </button>
           ))}
         </div>

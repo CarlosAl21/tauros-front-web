@@ -544,23 +544,34 @@ function ModuleScreen({
   // tauros-backend/scripts/migrate-exercise-catalog.js) y completa el form:
   // el video ya esta en Cloudinary (no se sube nada), y los musculos del
   // dataset pre-tildan el MuscleSelector para que el AM salga coherente.
+  // tipoLabel es la region general del cuerpo (Piernas, Pecho...) y matchea
+  // contra Tipo; categoriaLabel es el musculo especifico (Cuadriceps,
+  // Hombros...) y matchea contra Categoria -- confirmado contra la BD real,
+  // es al reves de lo que sugieren los nombres en ingles del dataset.
   const handleSelectCatalogExercise = (item) => {
+    const tipoOpciones = getOptionsForField('tipoId') || [];
     const categoriaOpciones = getOptionsForField('categoriaId') || [];
+    const matchedTipo = tipoOpciones.find(
+      (opt) => opt.label.trim().toLowerCase() === (item.tipoLabel || '').trim().toLowerCase(),
+    );
     const matchedCategoria = categoriaOpciones.find(
-      (opt) => opt.label.trim().toLowerCase() === (item.bodyPartLabel || '').trim().toLowerCase(),
+      (opt) => opt.label.trim().toLowerCase() === (item.categoriaLabel || '').trim().toLowerCase(),
     );
 
     setCreateForm((current) => ({
       ...current,
-      nombre: current.nombre?.trim() ? current.nombre : item.name,
+      nombre: current.nombre?.trim() ? current.nombre : (item.nameEs || item.name),
       linkVideo: item.videoUrl,
       linkVideoFile: undefined,
+      tipoId: matchedTipo ? matchedTipo.value : current.tipoId,
       categoriaId: matchedCategoria ? matchedCategoria.value : current.categoriaId,
     }));
     setSelectedMuscles(item.muscleIds || []);
     setCatalogHint({
-      bodyPartLabel: item.bodyPartLabel,
+      tipoLabel: item.tipoLabel,
+      categoriaLabel: item.categoriaLabel,
       equipment: item.equipment,
+      matchedTipo: Boolean(matchedTipo),
       matchedCategoria: Boolean(matchedCategoria),
     });
     setShowCatalogPicker(false);
@@ -2201,7 +2212,8 @@ function ModuleScreen({
                 </button>
                 {catalogHint && (
                   <small>
-                    {`Del catalogo: ${catalogHint.bodyPartLabel} · equipo sugerido: ${catalogHint.equipment}`}
+                    {`Del catalogo: ${catalogHint.tipoLabel} · ${catalogHint.categoriaLabel} · equipo sugerido: ${catalogHint.equipment}`}
+                    {!catalogHint.matchedTipo && ' — no encontre un Tipo con ese nombre, revisalo.'}
                     {!catalogHint.matchedCategoria && ' — no encontre una Categoria con ese nombre, revisala.'}
                   </small>
                 )}
@@ -2259,6 +2271,31 @@ function ModuleScreen({
 
               if (isExerciseModule && field === 'linkVideo') {
                 const videoLabel = createForm.linkVideoFile?.name || createForm.linkVideo || 'Sin archivo';
+                const hasPreloadedVideo = !createForm.linkVideoFile && Boolean(createForm.linkVideo?.trim());
+
+                if (hasPreloadedVideo) {
+                  return (
+                    <label key={field}>
+                      Link de video
+                      <p className="catalog-video-hint">
+                        Video ya cargado ({createForm.linkVideo}).
+                        {' '}
+                        <button
+                          type="button"
+                          className="btn-action"
+                          onClick={() => setCreateForm((current) => ({
+                            ...current,
+                            linkVideo: '',
+                            linkVideoFile: undefined,
+                          }))}
+                        >
+                          Reemplazar video
+                        </button>
+                      </p>
+                    </label>
+                  );
+                }
+
                 return (
                   <label key={field}>
                     Link de video

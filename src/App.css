@@ -233,6 +233,12 @@ a {
   border-color: var(--accent-soft);
 }
 
+.catalog-video-hint {
+  overflow-wrap: anywhere;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
 .user-pill {
   display: grid;
   gap: 0.1rem;
