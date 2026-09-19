@@ -2262,6 +2262,110 @@ th {
   border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
+.catalog-picker-trigger {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.4rem;
+}
+
+.catalog-picker-trigger small {
+  opacity: 0.65;
+}
+
+.catalog-picker-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 199;
+}
+
+.catalog-picker {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 92%;
+  max-width: 1000px;
+  max-height: 88vh;
+  overflow-y: auto;
+  z-index: 200;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(20, 20, 20, 0.97);
+  padding: 1.4rem;
+}
+
+.catalog-picker__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.catalog-picker__filters {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.6rem;
+}
+
+.catalog-picker__filters input {
+  flex: 1;
+  min-width: 200px;
+}
+
+.catalog-picker__count {
+  opacity: 0.6;
+  font-size: 0.85rem;
+  margin: 0 0 0.8rem;
+}
+
+.catalog-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.9rem;
+}
+
+.catalog-picker__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  padding: 0.6rem;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+}
+
+.catalog-picker__item:hover {
+  border-color: rgba(255, 180, 168, 0.5);
+}
+
+.catalog-picker__video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.catalog-picker__name {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.catalog-picker__meta {
+  font-size: 0.72rem;
+  opacity: 0.6;
+  text-transform: capitalize;
+}
+
 @media (max-width: 1100px) {
   .plan-builder-grid {
     grid-template-columns: 1fr;

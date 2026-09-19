@@ -5,6 +5,7 @@ import { normalizeVideoUrl } from '../utils/cloudinary';
 import { formatSecondsHint, toPositiveSeconds } from '../utils/restTime';
 import { apiRequest } from '../services/api';
 import MuscleSelector, { MUSCLE_GROUPS, CANVAS_BACKGROUND } from './MuscleSelector';
+import ExerciseCatalogPicker from './ExerciseCatalogPicker';
 import MachineSelector from './MachineSelector';
 import PlanNutricionalScreen from './PlanNutricionalScreen';
 
@@ -517,6 +518,8 @@ function ModuleScreen({
   const [selectedMuscles, setSelectedMuscles] = useState([]);
   const [videoProcessing, setVideoProcessing] = useState(false);
   const [musclePreviewUrl, setMusclePreviewUrl] = useState('');
+  const [showCatalogPicker, setShowCatalogPicker] = useState(false);
+  const [catalogHint, setCatalogHint] = useState(null);
 
   // Close form with muscle reset for exercise module
   const handleCloseForm = () => {
@@ -532,8 +535,35 @@ function ModuleScreen({
         ...current,
         linkAMFile: undefined,
       }));
+      setCatalogHint(null);
     }
     closeForm();
+  };
+
+  // Toma un ejercicio del catalogo pre-migrado a Cloudinary (ver
+  // tauros-backend/scripts/migrate-exercise-catalog.js) y completa el form:
+  // el video ya esta en Cloudinary (no se sube nada), y los musculos del
+  // dataset pre-tildan el MuscleSelector para que el AM salga coherente.
+  const handleSelectCatalogExercise = (item) => {
+    const categoriaOpciones = getOptionsForField('categoriaId') || [];
+    const matchedCategoria = categoriaOpciones.find(
+      (opt) => opt.label.trim().toLowerCase() === (item.bodyPartLabel || '').trim().toLowerCase(),
+    );
+
+    setCreateForm((current) => ({
+      ...current,
+      nombre: current.nombre?.trim() ? current.nombre : item.name,
+      linkVideo: item.videoUrl,
+      linkVideoFile: undefined,
+      categoriaId: matchedCategoria ? matchedCategoria.value : current.categoriaId,
+    }));
+    setSelectedMuscles(item.muscleIds || []);
+    setCatalogHint({
+      bodyPartLabel: item.bodyPartLabel,
+      equipment: item.equipment,
+      matchedCategoria: Boolean(matchedCategoria),
+    });
+    setShowCatalogPicker(false);
   };
 
   const formFields = (activeModule.formFields || []).filter((field) => {
@@ -2164,6 +2194,19 @@ function ModuleScreen({
             <p className="status">El coach crea usuarios normales con rol user.</p>
           )}
           <form className="form-grid compact" onSubmit={handleCreate}>
+            {isExerciseModule && (
+              <div className="catalog-picker-trigger">
+                <button type="button" className="btn-action" onClick={() => setShowCatalogPicker(true)}>
+                  Elegir del catalogo
+                </button>
+                {catalogHint && (
+                  <small>
+                    {`Del catalogo: ${catalogHint.bodyPartLabel} · equipo sugerido: ${catalogHint.equipment}`}
+                    {!catalogHint.matchedCategoria && ' — no encontre una Categoria con ese nombre, revisala.'}
+                  </small>
+                )}
+              </div>
+            )}
             {isCompositionModule && (
               <label>
                 Buscar usuario por cédula
@@ -2579,6 +2622,13 @@ function ModuleScreen({
           </form>
         </article>
         </>
+      )}
+
+      {showCatalogPicker && (
+        <ExerciseCatalogPicker
+          onSelect={handleSelectCatalogExercise}
+          onClose={() => setShowCatalogPicker(false)}
+        />
       )}
     </section>
   );
