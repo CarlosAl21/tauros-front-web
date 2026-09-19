@@ -1,16 +1,23 @@
-import { normalizeVideoUrl } from './cloudinary';
+import { buildExerciseThumbnailUrl, normalizeVideoUrl } from './cloudinary';
 
 describe('normalizeVideoUrl', () => {
-  it('inserta la transformacion de tamaño en una URL de video de Cloudinary', () => {
+  it('inserta una transformacion que no recorta en una URL de video de Cloudinary', () => {
     const input = 'https://res.cloudinary.com/demo/video/upload/v123/tauros/ejercicios/video/abc.mp4';
     expect(normalizeVideoUrl(input)).toBe(
-      'https://res.cloudinary.com/demo/video/upload/c_fill,w_960,h_540/v123/tauros/ejercicios/video/abc.mp4',
+      'https://res.cloudinary.com/demo/video/upload/c_limit,w_720,h_720/v123/tauros/ejercicios/video/abc.mp4',
     );
   });
 
   it('no duplica la transformacion si la URL ya la tiene', () => {
-    const input = 'https://res.cloudinary.com/demo/video/upload/c_fill,w_960,h_540/v123/abc.mp4';
+    const input = 'https://res.cloudinary.com/demo/video/upload/c_limit,w_720,h_720/v123/abc.mp4';
     expect(normalizeVideoUrl(input)).toBe(input);
+  });
+
+  it('reemplaza la transformacion antigua c_fill 16:9 que recortaba el video', () => {
+    const input = 'https://res.cloudinary.com/demo/video/upload/c_fill,w_960,h_540/v123/abc.mp4';
+    expect(normalizeVideoUrl(input)).toBe(
+      'https://res.cloudinary.com/demo/video/upload/c_limit,w_720,h_720/v123/abc.mp4',
+    );
   });
 
   it('deja intacta una URL que no es de Cloudinary video/upload', () => {
@@ -25,5 +32,19 @@ describe('normalizeVideoUrl', () => {
 
   it('deja intacta una URL invalida sin explotar', () => {
     expect(normalizeVideoUrl('no-es-una-url')).toBe('no-es-una-url');
+  });
+});
+
+describe('buildExerciseThumbnailUrl', () => {
+  it('genera un poster jpg del primer frame sin recortar', () => {
+    const input = 'https://res.cloudinary.com/demo/video/upload/v123/tauros/ejercicios/video/abc.mp4';
+    expect(buildExerciseThumbnailUrl(input)).toBe(
+      'https://res.cloudinary.com/demo/video/upload/c_limit,w_720,h_720,so_0/v123/tauros/ejercicios/video/abc.jpg',
+    );
+  });
+
+  it('devuelve vacio para URLs que no son de Cloudinary', () => {
+    expect(buildExerciseThumbnailUrl('https://example.com/a.mp4')).toBe('');
+    expect(buildExerciseThumbnailUrl('')).toBe('');
   });
 });

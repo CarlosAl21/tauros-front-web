@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatDisplayValue, getInputConstraints, getInputType, isOptionalField, resolveValue } from '../utils/form';
-import { normalizeVideoUrl } from '../utils/cloudinary';
+import { buildExerciseThumbnailUrl, normalizeVideoUrl } from '../utils/cloudinary';
 import { formatSecondsHint, toPositiveSeconds } from '../utils/restTime';
 import { apiRequest } from '../services/api';
 import MuscleSelector, { MUSCLE_GROUPS, CANVAS_BACKGROUND } from './MuscleSelector';
@@ -58,8 +58,9 @@ async function compressVideoFile(file) {
       try {
         const maxWidth = 960;
         const scale = video.videoWidth > maxWidth ? (maxWidth / video.videoWidth) : 1;
-        const width = Math.max(320, Math.floor(video.videoWidth * scale));
-        const height = Math.max(240, Math.floor(video.videoHeight * scale));
+        // Keep the source aspect ratio (exercise clips are 1:1); never force a 4:3 canvas.
+        const width = Math.max(2, Math.floor(video.videoWidth * scale));
+        const height = Math.max(2, Math.floor(video.videoHeight * scale));
 
         const canvas = document.createElement('canvas');
         canvas.width = width;
@@ -364,32 +365,8 @@ function getExerciseMetaValue(record, field, options = []) {
   return matched?.label || String(rawId);
 }
 
-function buildExerciseVideoThumbnail(videoUrl) {
-  if (!videoUrl || typeof videoUrl !== 'string') {
-    return '';
-  }
-
-  try {
-    const parsed = new URL(videoUrl);
-    if (!parsed.hostname.includes('res.cloudinary.com') || !parsed.pathname.includes('/video/upload/')) {
-      return '';
-    }
-
-    const [prefix, suffix] = parsed.pathname.split('/video/upload/');
-    if (!suffix) {
-      return '';
-    }
-
-    const jpgPath = suffix.replace(/\.[^./?]+$/, '.jpg');
-    const thumbnailPath = `${prefix}/video/upload/c_fill,w_960,h_540,so_0/${jpgPath}`;
-    return `${parsed.origin}${thumbnailPath}${parsed.search || ''}`;
-  } catch (_error) {
-    return '';
-  }
-}
-
 function ExerciseVideoThumbnail({ src, className = '', alt = 'Miniatura del video' }) {
-  const thumbnailSrc = useMemo(() => buildExerciseVideoThumbnail(src), [src]);
+  const thumbnailSrc = useMemo(() => buildExerciseThumbnailUrl(src), [src]);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {

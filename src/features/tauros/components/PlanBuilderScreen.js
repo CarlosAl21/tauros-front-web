@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { apiRequest } from '../services/api';
+import { buildExerciseThumbnailUrl } from '../utils/cloudinary';
 import { formatSecondsHint, toPositiveSeconds } from '../utils/restTime';
 
 function resolveId(candidate) {
@@ -25,32 +26,8 @@ function resolveId(candidate) {
   return String(candidate);
 }
 
-function buildExerciseVideoThumbnail(videoUrl) {
-  if (!videoUrl || typeof videoUrl !== 'string') {
-    return '';
-  }
-
-  try {
-    const parsed = new URL(videoUrl);
-    if (!parsed.hostname.includes('res.cloudinary.com') || !parsed.pathname.includes('/video/upload/')) {
-      return '';
-    }
-
-    const [prefix, suffix] = parsed.pathname.split('/video/upload/');
-    if (!suffix) {
-      return '';
-    }
-
-    const jpgPath = suffix.replace(/\.[^./?]+$/, '.jpg');
-    const thumbnailPath = `${prefix}/video/upload/c_fill,w_960,h_540,so_0/${jpgPath}`;
-    return `${parsed.origin}${thumbnailPath}${parsed.search || ''}`;
-  } catch (_error) {
-    return '';
-  }
-}
-
 function ExerciseThumbnail({ src, className = '', alt = 'Miniatura del ejercicio' }) {
-  const thumbnailSrc = useMemo(() => buildExerciseVideoThumbnail(src), [src]);
+  const thumbnailSrc = useMemo(() => buildExerciseThumbnailUrl(src), [src]);
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
