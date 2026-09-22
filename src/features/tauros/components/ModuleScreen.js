@@ -1035,8 +1035,7 @@ function ModuleScreen({
             planesActivos: Math.max(Number(prevStats.planesActivos || 0) - 1, 0),
           } : prevStats));
 
-          await reloadModule();
-          setConfirmModal({ open: false, title: '', loading: false, onConfirm: null });
+          window.location.reload();
         } catch (error) {
           setConfirmModal((c) => ({ ...c, loading: false }));
           setUserDetailError(error.message || 'No se pudo eliminar la rutina asignada');
@@ -1059,8 +1058,7 @@ function ModuleScreen({
         await apiRequest(`/${moduleKey}/${id}`, token, { method: 'DELETE' });
       }
 
-      await reloadModule();
-      setSelectedId('');
+      window.location.reload();
     } catch (error) {
       console.error('toggle active error', error);
     }

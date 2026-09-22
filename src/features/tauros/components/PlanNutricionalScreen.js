@@ -161,11 +161,7 @@ function PlanNutricionalScreen({
       });
 
       setSuccess('Plan nutricional eliminado');
-      await loadPlanes();
-      if (onRefresh) {
-        onRefresh();
-      }
-      closeDeleteConfirm();
+      window.location.reload();
     } catch (err) {
       setError(err.message || 'No se pudo eliminar el plan');
     } finally {

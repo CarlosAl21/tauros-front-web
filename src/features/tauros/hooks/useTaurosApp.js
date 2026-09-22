@@ -111,7 +111,7 @@ export function useTaurosApp() {
       ]);
 
       setCatalogs({
-        usuarios: Array.isArray(usuarios) ? usuarios : [],
+        usuarios: Array.isArray(usuarios) ? usuarios.filter((item) => item.isActive !== false) : [],
         categorias: Array.isArray(categorias) ? categorias : [],
         tipos: Array.isArray(tipos) ? tipos : [],
         maquinas: Array.isArray(maquinas) ? maquinas : [],
@@ -587,8 +587,7 @@ export function useTaurosApp() {
 
       setSuccess('Registro eliminado correctamente');
       setSelectedId('');
-      await reloadModule();
-      await loadCatalogs();
+      window.location.reload();
     } catch (err) {
       setError(err.message || 'No se pudo eliminar el registro');
     }
