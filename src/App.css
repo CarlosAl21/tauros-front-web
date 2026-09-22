@@ -2766,7 +2766,10 @@ th {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .activity-card {
+  .activity-card,
+  .insights-card,
+  .opportunities-card,
+  .stats-card {
     grid-column: span 1;
   }
 
