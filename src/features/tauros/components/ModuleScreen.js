@@ -8,6 +8,7 @@ import MuscleSelector, { MUSCLE_GROUPS, CANVAS_BACKGROUND } from './MuscleSelect
 import ExerciseCatalogPicker from './ExerciseCatalogPicker';
 import MachineSelector from './MachineSelector';
 import PlanNutricionalScreen from './PlanNutricionalScreen';
+import LoadProgressPanel from './LoadProgressPanel';
 
 function isFileLike(value) {
   return typeof File !== 'undefined' && value instanceof File;
@@ -1679,6 +1680,12 @@ function ModuleScreen({
               >
                 Plan Nutricional
               </button>
+              <button
+                className={`tab-button ${userDetailTab === 'carga' ? 'active' : ''}`}
+                onClick={() => setUserDetailTab('carga')}
+              >
+                Progreso de carga
+              </button>
             </div>
 
             {userDetailError && <p className="status error">{userDetailError}</p>}
@@ -2156,6 +2163,13 @@ function ModuleScreen({
               <PlanNutricionalScreen
                 usuarioId={selectedRecord?.userId}
                 token={token}
+              />
+            )}
+
+            {userDetailTab === 'carga' && (
+              <LoadProgressPanel
+                key={selectedRecord?.userId}
+                usuarioId={selectedRecord?.userId}
               />
             )}
           </section>

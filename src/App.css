@@ -3220,3 +3220,199 @@ th {
   color: var(--muted);
   font-size: 0.9rem;
 }
+
+/* Load progress (user detail tab) */
+
+.load-progress {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.load-progress__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.load-progress__head h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05rem;
+}
+
+.load-progress__units {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.load-progress__unit {
+  min-width: 48px;
+  min-height: 40px;
+  padding: 0.35rem 0.85rem;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.load-progress__unit + .load-progress__unit {
+  border-left: 1px solid var(--line);
+}
+
+.load-progress__unit.active {
+  background: var(--bg-elev-2);
+  color: var(--accent-soft);
+}
+
+.load-progress__list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.load-progress__item {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev);
+}
+
+.load-progress__item.expanded {
+  border-color: var(--accent-soft);
+}
+
+.load-progress__row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.3fr);
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.7rem 0.85rem;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.load-progress__row > * {
+  min-width: 0;
+}
+
+.load-progress__name,
+.load-progress__range {
+  overflow-wrap: anywhere;
+}
+
+.load-progress__meta {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.load-progress__delta {
+  font-weight: 700;
+}
+
+.load-progress__delta--up {
+  color: #4cc774;
+}
+
+.load-progress__delta--down {
+  color: var(--accent-soft);
+}
+
+.load-progress__delta--flat {
+  color: var(--muted);
+}
+
+.load-progress__panel {
+  border-top: 1px solid var(--line);
+  padding: 0.7rem 0.85rem;
+}
+
+.load-progress__history {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.load-progress__sparkline {
+  display: block;
+  width: 100%;
+  height: 48px;
+  color: var(--accent-soft);
+}
+
+.load-progress__history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr));
+  gap: 0.25rem 1rem;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.load-progress__history-list li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.35rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.85rem;
+}
+
+.load-progress__history-list li span {
+  color: var(--muted);
+}
+
+.load-progress__history-error {
+  display: grid;
+  justify-items: start;
+  gap: 0.4rem;
+}
+
+.load-progress__history-error .btn-action {
+  min-height: 40px;
+}
+
+/* Tablets (portrait and landscape): the sidebar still eats width up to 900px
+   and stacks below it, so the panel is ~650-750px in both cases. Put the name
+   on its own line and keep the 4 metrics in one row. */
+@media (max-width: 1100px) {
+  .user-detail-tabs {
+    flex-wrap: wrap;
+  }
+
+  .load-progress__row {
+    grid-template-columns: minmax(0, 1.5fr) auto minmax(0, 1fr) minmax(0, 1.3fr);
+    gap: 0.35rem 0.75rem;
+  }
+
+  .load-progress__name {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 600px) {
+  .load-progress__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.35rem 0.6rem;
+    padding: 0.65rem 0.7rem;
+  }
+
+  .load-progress__panel {
+    padding: 0.6rem 0.7rem;
+  }
+}

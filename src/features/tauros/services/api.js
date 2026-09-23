@@ -203,3 +203,13 @@ export async function apiRequest(path, _token, options = {}) {
 
   return payload;
 }
+
+// Load (weight lifted) progress recorded from the mobile app. ADMIN/COACH only.
+export function fetchLoadSummary(usuarioId) {
+  return apiRequest(`/registro-carga/usuario/${encodeURIComponent(usuarioId)}/resumen`);
+}
+
+export function fetchLoadHistory(usuarioId, ejercicioId) {
+  const query = new URLSearchParams({ ejercicioId }).toString();
+  return apiRequest(`/registro-carga/usuario/${encodeURIComponent(usuarioId)}?${query}`);
+}
