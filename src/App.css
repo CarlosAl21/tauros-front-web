@@ -2832,22 +2832,6 @@ th {
 }
 
 @media (max-width: 900px) {
-  .app-shell {
-    display: block;
-  }
-
-  .sidebar {
-    width: 100%;
-    height: auto;
-    position: static;
-    border-right: 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  }
-
-  .sidebar nav {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .topbar {
     flex-direction: column;
     align-items: stretch;
@@ -2867,14 +2851,6 @@ th {
   .main-content {
     padding-inline: 0.7rem;
     gap: 0.7rem;
-  }
-
-  .sidebar {
-    padding: 0.9rem;
-  }
-
-  .sidebar nav {
-    grid-template-columns: 1fr;
   }
 
   .metric-card strong {
@@ -3387,9 +3363,8 @@ th {
   min-height: 40px;
 }
 
-/* Tablets (portrait and landscape): the sidebar still eats width up to 900px
-   and stacks below it, so the panel is ~650-750px in both cases. Put the name
-   on its own line and keep the 4 metrics in one row. */
+/* Tablets (portrait and landscape): the panel is ~650-1050px wide. Put the
+   name on its own line and keep the 4 metrics in one row. */
 @media (max-width: 1100px) {
   .user-detail-tabs {
     flex-wrap: wrap;
@@ -3414,5 +3389,268 @@ th {
 
   .load-progress__panel {
     padding: 0.6rem 0.7rem;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Navigation drawer: <=1100px the sidebar becomes an off-canvas menu  */
+/* opened from a compact top bar (logo + hamburger). The top bar stays */
+/* below modal overlays (z 99-200); the drawer sits above everything.  */
+/* ------------------------------------------------------------------ */
+
+:root {
+  --mobile-topbar-height: 60px;
+}
+
+.mobile-topbar,
+.sidebar-overlay {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .app-shell {
+    display: block;
+  }
+
+  .mobile-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    height: var(--mobile-topbar-height);
+    padding: 0 1rem;
+    background: var(--bg);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .mobile-topbar .logo {
+    width: 42px;
+    height: 42px;
+  }
+
+  .mobile-topbar__toggle {
+    display: inline-flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  .mobile-topbar__toggle:hover,
+  .mobile-topbar__toggle:focus-visible,
+  .mobile-topbar__toggle.is-open {
+    border-color: var(--accent);
+  }
+
+  .mobile-topbar__bar {
+    display: block;
+    width: 20px;
+    height: 2px;
+    background: currentColor;
+    transition: transform 180ms ease, opacity 180ms ease;
+  }
+
+  .mobile-topbar__toggle.is-open .mobile-topbar__bar:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+  }
+
+  .mobile-topbar__toggle.is-open .mobile-topbar__bar:nth-child(2) {
+    opacity: 0;
+  }
+
+  .mobile-topbar__toggle.is-open .mobile-topbar__bar:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
+  }
+
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+    background: rgba(0, 0, 0, 0.6);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 200ms ease, visibility 0s linear 200ms;
+  }
+
+  .sidebar-overlay.is-open {
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 200ms ease;
+  }
+
+  /* Closed drawer is visibility:hidden so its links are not tabbable. */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 1110;
+    width: min(300px, 85vw);
+    height: 100%;
+    background: var(--bg);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 220ms ease, visibility 0s linear 220ms;
+  }
+
+  .sidebar.is-open {
+    transform: translateX(0);
+    visibility: visible;
+    transition: transform 220ms ease;
+  }
+
+  .sidebar nav {
+    overflow: visible;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .sidebar.is-open,
+  .sidebar-overlay,
+  .sidebar-overlay.is-open,
+  .mobile-topbar__bar {
+    transition: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Plan builder exercise picker: bounded, independently scrollable     */
+/* columns on desktop; "Disponibles / Seleccionados" tabs <=1100px.    */
+/* ------------------------------------------------------------------ */
+
+/* Compound selector: .exercise-card-grid (declared later) otherwise resets
+   max-height to none and the 1000+ item catalog pushes the selection away. */
+.exercise-card-grid.plan-builder-exercise-list {
+  max-height: 62vh;
+  overflow-y: auto;
+  padding: 0 0.3rem 0 0;
+  gap: 0.6rem;
+}
+
+.plan-builder-selected-list {
+  max-height: 62vh;
+}
+
+.plan-builder-exercise-tabs {
+  display: none;
+}
+
+@media (min-width: 1101px) {
+  .plan-builder-exercise-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1100px) {
+  .plan-builder-exercise-tabs {
+    position: sticky;
+    top: var(--mobile-topbar-height);
+    z-index: 20;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem;
+    padding: 0.4rem 0;
+    background: var(--bg-elev);
+  }
+
+  .plan-builder-exercise-tab {
+    min-height: 44px;
+    padding: 0.5rem 0.6rem;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--muted);
+    font-weight: 700;
+    font-size: 0.78rem;
+    letter-spacing: 0.04rem;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  .plan-builder-exercise-tab.active {
+    border-color: var(--accent);
+    background: var(--bg-elev-2);
+    color: var(--accent-soft);
+  }
+
+  .plan-builder-exercise-grid--available .plan-builder-selected-column,
+  .plan-builder-exercise-grid--selected .plan-builder-available-column {
+    display: none;
+  }
+
+  .exercise-card-grid.plan-builder-exercise-list {
+    max-height: 60vh;
+  }
+
+  /* The selected tab owns the view, so let the page scroll it. */
+  .plan-builder-selected-list {
+    max-height: none;
+    overflow: visible;
+  }
+
+  /* The summary line already carries category, type and machine. */
+  .exercise-pick-card__meta {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .exercise-pick-card .exercise-card__summary-main,
+  .plan-builder-selected-card .exercise-card__summary-main {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .exercise-pick-card .exercise-card__poster,
+  .plan-builder-selected-card .exercise-card__poster {
+    width: 72px;
+    max-width: none;
+    align-self: center;
+  }
+}
+
+@media (max-width: 600px) {
+  .exercise-pick-card {
+    padding: 0.45rem;
+  }
+
+  .exercise-pick-card .exercise-card__poster {
+    width: 52px;
+    border-radius: var(--radius-sm);
+  }
+
+  .exercise-pick-card .exercise-card__eyebrow {
+    display: none;
+  }
+
+  .exercise-pick-card .exercise-card__summary-copy {
+    gap: 0.15rem;
+  }
+
+  .exercise-pick-card .exercise-card__summary-copy p {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .exercise-pick-card:hover,
+  .exercise-pick-card:focus-visible {
+    transform: none;
   }
 }

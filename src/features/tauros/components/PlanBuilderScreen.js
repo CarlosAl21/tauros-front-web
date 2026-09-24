@@ -243,6 +243,8 @@ function PlanBuilderScreen({
   const defaultSeriesRef = useRef(defaultSeries);
   const defaultRepetitionsRef = useRef(defaultRepetitions);
   const [isDropZoneActive, setIsDropZoneActive] = useState(false);
+  // Only used <=1100px, where the two exercise columns become tabs.
+  const [exercisePanel, setExercisePanel] = useState('available');
 
   const planCards = useMemo(() => {
     const source = Array.isArray(plans) ? plans : [];
@@ -1229,8 +1231,29 @@ function PlanBuilderScreen({
                   </label>
                 </div>
 
-                <div className="plan-builder-exercise-grid">
-                  <section className="plan-builder-available-column">
+                <div className="plan-builder-exercise-tabs" role="group" aria-label="Vista de ejercicios">
+                  <button
+                    type="button"
+                    className={`plan-builder-exercise-tab ${exercisePanel === 'available' ? 'active' : ''}`}
+                    aria-pressed={exercisePanel === 'available'}
+                    aria-controls="plan-builder-available"
+                    onClick={() => setExercisePanel('available')}
+                  >
+                    Disponibles ({availableExercises.length})
+                  </button>
+                  <button
+                    type="button"
+                    className={`plan-builder-exercise-tab ${exercisePanel === 'selected' ? 'active' : ''}`}
+                    aria-pressed={exercisePanel === 'selected'}
+                    aria-controls="plan-builder-selected"
+                    onClick={() => setExercisePanel('selected')}
+                  >
+                    Seleccionados ({selectedExerciseDrafts.length})
+                  </button>
+                </div>
+
+                <div className={`plan-builder-exercise-grid plan-builder-exercise-grid--${exercisePanel}`}>
+                  <section id="plan-builder-available" className="plan-builder-available-column">
                     <div className="plan-builder-section-head">
                       <strong>Ejercicios disponibles</strong>
                       <span>{availableExercises.length} resultados</span>
@@ -1268,7 +1291,7 @@ function PlanBuilderScreen({
                               <div className="exercise-card__summary-copy">
                                 <span className="exercise-card__eyebrow">Ejercicio</span>
                                 <h3>{exercise.nombre}</h3>
-                                <p>{[categoria, tipo].join(' · ')}</p>
+                                <p>{[categoria, tipo, maquina].join(' · ')}</p>
                               </div>
                             </div>
 
@@ -1294,7 +1317,7 @@ function PlanBuilderScreen({
                     </div>
                   </section>
 
-                  <section className="plan-builder-selected-column">
+                  <section id="plan-builder-selected" className="plan-builder-selected-column">
                     <div className="plan-builder-section-head">
                       <strong>Ejercicios seleccionados</strong>
                       <span>{selectedExerciseDrafts.length} seleccionados</span>
